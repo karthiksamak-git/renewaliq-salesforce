@@ -44,27 +44,12 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
-        <field>RIQ_Health_Signal__c.Account__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>false</editable>
         <field>RIQ_Health_Signal__c.Notes__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
-        <field>RIQ_Health_Signal__c.Occurred_On__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>false</editable>
         <field>RIQ_Health_Signal__c.Severity__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>false</editable>
-        <field>RIQ_Health_Signal__c.Signal_Type__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
