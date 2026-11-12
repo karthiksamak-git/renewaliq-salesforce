@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Base_Weight__c</fullName>
+    <description
+  >Points removed from a perfect score of 100 for one occurrence at full severity. Negative values are credits that raise the score.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Base Weight</label>
+    <precision>6</precision>
+    <required>true</required>
+    <scale>2</scale>
+    <type>Number</type>
+</CustomField>

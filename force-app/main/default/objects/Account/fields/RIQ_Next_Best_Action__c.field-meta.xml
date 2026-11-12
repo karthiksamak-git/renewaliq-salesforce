@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RIQ_Next_Best_Action__c</fullName>
+    <description
+  >Single recommended next action for the Customer Success Manager, generated alongside the AI summary.</description>
+    <externalId>false</externalId>
+    <label>Next Best Action</label>
+    <length>255</length>
+    <type>Text</type>
+</CustomField>

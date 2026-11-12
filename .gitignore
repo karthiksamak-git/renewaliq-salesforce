@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Salesforce CLI local state (never commit org auth URLs)
+.sfdx/
+.sf/
+.sfdev/
+.localdevserver/
+deploy-options.json
+
+# Test / build output
+coverage/
+dist/
+*.log
+
+# OS + editor
+.DS_Store
+Thumbs.db
+.idea/
+
+# Local env files
+.env
+.env.local

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Drivers__c</fullName>
+    <description
+  >JSON breakdown of every signal that contributed to the score, so a CSM can see why the number moved.</description>
+    <externalId>false</externalId>
+    <label>Drivers</label>
+    <length>32768</length>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

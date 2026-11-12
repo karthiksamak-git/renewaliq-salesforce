@@ -1,0 +1,16 @@
+# Files that exist for local tooling only and must never be deployed.
+
+# LWC tooling config
+**/jsconfig.json
+**/.eslintrc.json
+**/eslint.config.js
+
+# LWC Jest unit tests are local-only
+**/__tests__/**
+**/jest.config.js
+**/jest.setup.js
+
+# Node / editor noise
+node_modules/**
+**/.DS_Store
+**/*.log

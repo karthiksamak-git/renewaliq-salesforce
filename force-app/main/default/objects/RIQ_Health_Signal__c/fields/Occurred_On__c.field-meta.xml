@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Occurred_On__c</fullName>
+    <description
+  >Date the signal occurred. Drives time decay: the older the signal, the less it affects the score.</description>
+    <externalId>false</externalId>
+    <label>Occurred On</label>
+    <required>true</required>
+    <type>Date</type>
+</CustomField>

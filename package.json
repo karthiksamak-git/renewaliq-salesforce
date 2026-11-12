@@ -1,0 +1,30 @@
+{
+  "name": "renewaliq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RenewalIQ - Customer Health & Renewal Command Center on Salesforce",
+  "license": "UNLICENSED",
+  "scripts": {
+    "lint": "eslint force-app/main/default/lwc",
+    "lint:fix": "eslint force-app/main/default/lwc --fix",
+    "lint:all": "eslint .",
+    "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
+    "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
+    "test": "npm run test:unit",
+    "test:unit": "sfdx-lwc-jest",
+    "test:unit:watch": "sfdx-lwc-jest --watch",
+    "test:unit:coverage": "sfdx-lwc-jest --coverage",
+    "test:unit:debug": "sfdx-lwc-jest --debug"
+  },
+  "jest": {
+    "preset": "@salesforce/sfdx-lwc-jest"
+  },
+  "devDependencies": {
+    "@prettier/plugin-xml": "^3.4.2",
+    "@salesforce/eslint-config-lwc": "^4.1.2",
+    "@salesforce/sfdx-lwc-jest": "^7.9.0",
+    "eslint": "^9.39.5",
+    "prettier": "^3.10.0",
+    "prettier-plugin-apex": "^2.3.0"
+  }
+}

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Signal_Type__c</fullName>
+    <description>Signal type this rule applies to. Matches RIQ_Health_Signal__c.Signal_Type__c.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Signal Type</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Support Escalation</fullName>
+                <default>false</default>
+                <label>Support Escalation</label>
+            </value>
+            <value>
+                <fullName>Low Product Usage</fullName>
+                <default>false</default>
+                <label>Low Product Usage</label>
+            </value>
+            <value>
+                <fullName>Missed QBR</fullName>
+                <default>false</default>
+                <label>Missed QBR</label>
+            </value>
+            <value>
+                <fullName>Executive Sponsor Left</fullName>
+                <default>false</default>
+                <label>Executive Sponsor Left</label>
+            </value>
+            <value>
+                <fullName>Late Payment</fullName>
+                <default>false</default>
+                <label>Late Payment</label>
+            </value>
+            <value>
+                <fullName>NPS Detractor</fullName>
+                <default>false</default>
+                <label>NPS Detractor</label>
+            </value>
+            <value>
+                <fullName>Positive Expansion</fullName>
+                <default>false</default>
+                <label>Positive Expansion</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
