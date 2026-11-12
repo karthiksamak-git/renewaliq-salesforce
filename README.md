@@ -21,13 +21,29 @@ without a deployment.
 
 | Layer            | Responsibility                                    | Example                                       |
 | ---------------- | ------------------------------------------------- | --------------------------------------------- |
-| Trigger          | One per object, delegation only                   | `RIQ_AccountTrigger`                          |
-| Handler / Domain | Trigger context routing, record-level validation  | `RIQ_AccountTriggerHandler`                   |
-| Selector         | All SOQL for an SObject, field-list driven        | `RIQ_AccountSelector`                         |
-| Service          | Business logic, bulk-safe, transaction boundaries | `RIQ_HealthScoringService`                    |
-| Async            | Off-transaction work                              | Queueable, Batch, Schedulable                 |
+| Trigger          | One per object, delegation only                   | `RIQ_HealthSignalTrigger`                     |
+| Handler / Domain | Trigger context routing, record-level validation  | `RIQ_HealthSignalTriggerHandler`              |
+| Selector         | All SOQL for an SObject, `USER_MODE` by default   | `RIQ_HealthSignalSelector`                    |
+| Service          | Business logic, bulk-safe, transaction boundaries | `RIQ_HealthScoreService`                      |
+| Async            | Off-transaction work                              | `RIQ_HealthScoreRecalculator` (Queueable)     |
 | Config           | Thresholds and weights, no hardcoded numbers      | `RIQ_Scoring_Rule__mdt`, `RIQ_Threshold__mdt` |
 | UI               | LWC dashboard + record components                 | `riqHealthDashboard`                          |
+
+### How the score is calculated
+
+```
+score = clamp(100 - Σ(baseWeight × severity × decayFactor), 0, 100)
+decayFactor = clamp(1 - daysSinceOccurred / decayDays, 0, 1)
+```
+
+One formula covers everything: a penalty is a positive `Base_Weight__c`, a credit
+(such as Positive Expansion) is a negative one. The score is then banded by
+`RIQ_Threshold__mdt` (highest `Min_Score__c` first), and churn probability is
+derived from the score plus a renewal-proximity bonus. Every recalculation appends
+a `RIQ_Score_History__c` row whose `Drivers__c` JSON explains the number.
+
+Trigger → handler → `Queueable` → service: signals never calculate a score inline,
+so a 200-record load stays bulk-safe and well inside governor limits.
 
 ## Data model
 
@@ -39,7 +55,7 @@ scoring-rule contract.
 | Phase | Scope                                                    | Status |
 | ----- | -------------------------------------------------------- | ------ |
 | 1     | Project scaffold, data model, permission sets, seed data | ✅     |
-| 2     | Health scoring engine + score history                    | ⬜     |
+| 2     | Health scoring engine + score history                    | ✅     |
 | 3     | Renewal automation (Opportunities, playbook Tasks)       | ⬜     |
 | 4     | LWC dashboard + Jest tests                               | ⬜     |
 | 5     | AI summary callout, async + callout mocks                | ⬜     |
@@ -57,6 +73,7 @@ scoring-rule contract.
 npm install
 sf org login web --alias RenewalIQ --set-default
 sf project deploy start --target-org RenewalIQ
+sf org assign permset --name RIQ_Admin --target-org RenewalIQ   # metadata deploys do not grant profile FLS
 sf apex run --file scripts/apex/seed-data.apex --target-org RenewalIQ
 ```
 
@@ -74,6 +91,12 @@ npm run lint
 npm run prettier
 npm run test:unit
 ```
+
+`npm run prettier` formats Apex and XML through `prettier-plugin-apex` and
+`@prettier/plugin-xml`. The Apex plugin shells out to a bundled native
+`apex-ast-serializer` binary; on machines where an application-control policy blocks
+executables it fails with `blocked by your organization's Device Guard policy`, and
+Apex formatting has to run on an unrestricted machine (CI works well for this).
 
 ## Project layout
 
