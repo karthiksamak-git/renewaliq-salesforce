@@ -3,6 +3,12 @@
  * transaction: one query for accounts, one for signals, one cached metadata
  * read, then a single update and a single insert.
  *
+ * Since Phase 3 this class is a thin async wrapper around process(), the one
+ * code path shared by the health-signal trigger's Queueable, the nightly batch
+ * and any synchronous admin script. Keeping a single implementation is what
+ * makes "the nightly number" and "the number you see after logging a signal"
+ * provably identical.
+ *
  * Runs without sharing and with SYSTEM_MODE DML on purpose. The score fields are
  * system-maintained - RIQ_CSM can read them but not edit them - so writing them
  * under the triggering user's permissions would silently fail for exactly the
@@ -21,22 +27,37 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
     }
 
     /**
-     * @description Queueable entry point.
+     * @description Queueable entry point. Delegates to process() so a queued job
+     * and a batch chunk behave identically.
      * @param context Queueable context supplied by the platform.
      */
     public void execute(QueueableContext context) {
-        recalculate(accountIds);
+        process(accountIds);
     }
 
     /**
-     * @description The recalculation itself. Public and static so it can be
-     * called synchronously from admin scripts and tests, and so the queueable
-     * stays a thin wrapper.
+     * @description Backwards-compatible void entry point used by Phase 2 callers
+     * and admin scripts. New code should call process() to get the counts.
      * @param accountIds Accounts to re-score.
      */
     public static void recalculate(Set<Id> accountIds) {
+        process(accountIds);
+    }
+
+    /**
+     * @description The recalculation itself. Synchronous and bulk-safe: one
+     * account query, one signal query, one account update, one history insert,
+     * and one platform event publish, regardless of how many accounts came in.
+     *
+     * @param accountIds Accounts to re-score.
+     * @return Counts for the caller (batch, schedulable, test) plus the list of
+     *         real status transitions that were published as platform events.
+     */
+    public static ProcessResult process(Set<Id> accountIds) {
+        ProcessResult result = new ProcessResult();
+
         if (accountIds == null || accountIds.isEmpty()) {
-            return;
+            return result;
         }
 
         Map<String, RIQ_ScoringRule> rules = RIQ_ScoringRuleProvider.getRules();
@@ -45,13 +66,13 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             // Scoring with no rules would set every account to 100, which is
             // worse than leaving the previous score in place.
             System.debug(LoggingLevel.ERROR, 'RenewalIQ: no active scoring rules found, skipping recalculation.');
-            return;
+            return result;
         }
 
         List<Account> accounts = new RIQ_AccountSelector(AccessLevel.SYSTEM_MODE).getByIds(accountIds);
 
         if (accounts.isEmpty()) {
-            return;
+            return result;
         }
 
         Set<Id> foundAccountIds = new Map<Id, Account>(accounts).keySet();
@@ -70,7 +91,7 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
                 ? null
                 : today.daysBetween(account.RIQ_Contract_End_Date__c);
 
-            RIQ_HealthScoreService.ScoreResult result = RIQ_HealthScoreService.calculate(
+            RIQ_HealthScoreService.ScoreResult scoreResult = RIQ_HealthScoreService.calculate(
                 signalsByAccount.get(account.Id),
                 today,
                 daysToRenewal,
@@ -81,9 +102,9 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             accountsToUpdate.add(
                 new Account(
                     Id = account.Id,
-                    RIQ_Health_Score__c = result.score,
-                    RIQ_Health_Status__c = result.status,
-                    RIQ_Churn_Probability__c = result.churnProbability,
+                    RIQ_Health_Score__c = scoreResult.score,
+                    RIQ_Health_Status__c = scoreResult.status,
+                    RIQ_Churn_Probability__c = scoreResult.churnProbability,
                     RIQ_Last_Scored__c = calculatedOn
                 )
             );
@@ -91,16 +112,104 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             historyToInsert.add(
                 new RIQ_Score_History__c(
                     Account__c = account.Id,
-                    Score__c = result.score,
-                    Status__c = result.status,
+                    Score__c = scoreResult.score,
+                    Status__c = scoreResult.status,
                     Calculated_On__c = calculatedOn,
-                    Drivers__c = result.driversJson
+                    Drivers__c = scoreResult.driversJson
                 )
             );
+
+            result.processedCount++;
+
+            if (account.RIQ_Health_Status__c == null) {
+                // DECISION: a first score (null -> X) is a baseline, not a
+                // transition, so it publishes nothing. Otherwise the first run
+                // against a newly loaded book of accounts would fire one
+                // playbook per account and bury CSMs in duplicate outreach
+                // tasks for customers nobody has judged yet.
+                result.initialScoreCount++;
+            } else if (scoreResult.status != null && account.RIQ_Health_Status__c != scoreResult.status) {
+                result.statusChanges.add(
+                    new StatusChange(account.Id, account.RIQ_Health_Status__c, scoreResult.status, scoreResult.score)
+                );
+            }
         }
 
-        saveAccounts(accountsToUpdate);
-        saveHistory(historyToInsert);
+        result.updatedCount = saveAccounts(accountsToUpdate);
+        result.historyCount = saveHistory(historyToInsert);
+        result.failureCount +=
+            (accountsToUpdate.size() - result.updatedCount) + (historyToInsert.size() - result.historyCount);
+
+        result.statusChangeCount = result.statusChanges.size();
+        result.eventFailureCount = publishStatusChanges(result.statusChanges);
+        result.failureCount += result.eventFailureCount;
+
+        return result;
+    }
+
+    /**
+     * @description Publishes one RIQ_Health_Status_Change__e per real transition.
+     * The event is the domain signal ("this account's band moved"), so it is
+     * published for every transition; deciding which transitions deserve a
+     * playbook is the subscriber's job, not the scorer's.
+     *
+     * Events are published in chunks of 100 to stay well inside the per-call
+     * publish cap, and every SaveResult is inspected - a silently dropped event
+     * is a missed renewal, so a failure is counted for the caller.
+     *
+     * @param changes Transitions detected in this transaction.
+     * @return Number of events that failed to publish.
+     */
+    private static Integer publishStatusChanges(List<StatusChange> changes) {
+        if (changes.isEmpty()) {
+            return 0;
+        }
+
+        Integer failures = 0;
+        List<RIQ_Health_Status_Change__e> chunk = new List<RIQ_Health_Status_Change__e>();
+
+        for (StatusChange change : changes) {
+            chunk.add(
+                new RIQ_Health_Status_Change__e(
+                    AccountId__c = String.valueOf(change.accountId),
+                    OldStatus__c = change.oldStatus,
+                    NewStatus__c = change.newStatus,
+                    Score__c = change.score
+                )
+            );
+
+            if (chunk.size() == 100) {
+                failures += publishChunk(chunk);
+                chunk.clear();
+            }
+        }
+
+        if (!chunk.isEmpty()) {
+            failures += publishChunk(chunk);
+        }
+
+        return failures;
+    }
+
+    /**
+     * @param events Events to publish.
+     * @return Number of events that failed to publish.
+     */
+    private static Integer publishChunk(List<RIQ_Health_Status_Change__e> events) {
+        Integer failures = 0;
+        List<Database.SaveResult> results = EventBus.publish(events);
+
+        for (Database.SaveResult saveResult : results) {
+            if (!saveResult.isSuccess()) {
+                failures++;
+                System.debug(
+                    LoggingLevel.ERROR,
+                    'RenewalIQ: could not publish health status change event - ' + saveResult.getErrors()
+                );
+            }
+        }
+
+        return failures;
     }
 
     /**
@@ -126,37 +235,93 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
     /**
      * @description Saves scores without letting one bad record abort the job.
      * @param accountsToUpdate Accounts carrying the recalculated fields.
+     * @return Number of accounts that saved successfully.
      */
-    private static void saveAccounts(List<Account> accountsToUpdate) {
+    private static Integer saveAccounts(List<Account> accountsToUpdate) {
         if (accountsToUpdate.isEmpty()) {
-            return;
+            return 0;
         }
 
+        Integer saved = 0;
         List<Database.SaveResult> results = Database.update(accountsToUpdate, false, AccessLevel.SYSTEM_MODE);
 
         for (Database.SaveResult result : results) {
-            if (!result.isSuccess()) {
+            if (result.isSuccess()) {
+                saved++;
+            } else {
                 System.debug(LoggingLevel.ERROR, 'RenewalIQ: could not update score for ' + result.getId() + ' - ' + result.getErrors());
             }
         }
+
+        return saved;
     }
 
     /**
      * @description Appends the audit trail. History is the reason a trend chart
      * can exist later, so it is written in the same transaction as the score.
      * @param historyToInsert One row per recalculated account.
+     * @return Number of history rows that saved successfully.
      */
-    private static void saveHistory(List<RIQ_Score_History__c> historyToInsert) {
+    private static Integer saveHistory(List<RIQ_Score_History__c> historyToInsert) {
         if (historyToInsert.isEmpty()) {
-            return;
+            return 0;
         }
 
+        Integer saved = 0;
         List<Database.SaveResult> results = Database.insert(historyToInsert, false, AccessLevel.SYSTEM_MODE);
 
         for (Database.SaveResult result : results) {
-            if (!result.isSuccess()) {
+            if (result.isSuccess()) {
+                saved++;
+            } else {
                 System.debug(LoggingLevel.ERROR, 'RenewalIQ: could not write score history - ' + result.getErrors());
             }
         }
+
+        return saved;
+    }
+
+    /**
+     * @description One real band transition, ready to become an event.
+     */
+    public class StatusChange {
+        /** Account that moved. */
+        public Id accountId { get; private set; }
+        /** Band before this recalculation. */
+        public String oldStatus { get; private set; }
+        /** Band after this recalculation. */
+        public String newStatus { get; private set; }
+        /** Score that produced the new band. */
+        public Integer score { get; private set; }
+
+        public StatusChange(Id accountId, String oldStatus, String newStatus, Integer score) {
+            this.accountId = accountId;
+            this.oldStatus = oldStatus;
+            this.newStatus = newStatus;
+            this.score = score;
+        }
+    }
+
+    /**
+     * @description What one process() call did. The batch makes these per-chunk
+     * counts stateful so finish() can log the whole run in one line.
+     */
+    public class ProcessResult {
+        /** Accounts loaded and scored. */
+        public Integer processedCount = 0;
+        /** Account updates that saved. */
+        public Integer updatedCount = 0;
+        /** RIQ_Score_History__c rows that saved. */
+        public Integer historyCount = 0;
+        /** Accounts scored for the first time (baseline, publishes no event). */
+        public Integer initialScoreCount = 0;
+        /** Real band transitions detected. */
+        public Integer statusChangeCount = 0;
+        /** Updates, history rows and events that failed. */
+        public Integer failureCount = 0;
+        /** Events that failed to publish. */
+        public Integer eventFailureCount = 0;
+        /** The transitions, in account order. */
+        public List<StatusChange> statusChanges = new List<StatusChange>();
     }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description
+  >Published by the RenewalIQ scoring engine when an Account's health band actually changes. High volume, published after commit. Consumed by RIQ_PlaybookService through RIQ_HealthStatusChangeTrigger.</description>
+    <eventType>HighVolume</eventType>
+    <label>Health Status Change</label>
+    <pluralLabel>Health Status Changes</pluralLabel>
+    <publishBehavior>PublishAfterCommit</publishBehavior>
+</CustomObject>

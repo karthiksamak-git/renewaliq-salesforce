@@ -59,9 +59,9 @@ public with sharing class RIQ_HealthSignalTriggerHandler extends RIQ_TriggerHand
         }
 
         if (Limits.getQueueableJobs() >= Limits.getLimitQueueableJobs()) {
-            // Nothing safe left to do inline. Phase 5 adds a scheduled batch
-            // that re-scores anything whose Last_Scored is stale, so the data
-            // self-heals instead of silently rotting.
+            // Nothing safe left to do inline. RIQ_NightlyScoreBatch re-scores
+            // the whole book every night, so the data self-heals instead of
+            // silently rotting.
             System.debug(
                 LoggingLevel.WARN,
                 'RenewalIQ: queueable limit reached, skipped score recalculation for ' + accountIds.size() + ' account(s).'
