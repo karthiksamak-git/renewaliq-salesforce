@@ -39,4 +39,24 @@ public class RIQ_AccountSelector extends RIQ_Selector {
         Map<String, Object> binds = new Map<String, Object>{ 'accountIds' => accountIds };
         return (List<Account>) query(soql, binds);
     }
+
+    /**
+     * @description Loads the fields the health card renders. Kept separate from
+     * getByIds so the scoring engine still reads only what scoring needs.
+     * @param accountIds Accounts to load.
+     * @return Accounts in the supplied id set; empty when none are visible.
+     */
+    public List<Account> getForHealthCards(Set<Id> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return new List<Account>();
+        }
+
+        String soql =
+            'SELECT Id, Name, OwnerId, Owner.Name, RIQ_ARR__c, RIQ_Contract_End_Date__c,' +
+            ' RIQ_Health_Score__c, RIQ_Health_Status__c, RIQ_Churn_Probability__c, RIQ_Last_Scored__c' +
+            ' FROM Account' +
+            ' WHERE Id IN :accountIds';
+        Map<String, Object> binds = new Map<String, Object>{ 'accountIds' => accountIds };
+        return (List<Account>) query(soql, binds);
+    }
 }

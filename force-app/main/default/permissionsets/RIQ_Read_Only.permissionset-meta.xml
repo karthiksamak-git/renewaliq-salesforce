@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <classAccesses>
+        <apexClass>RIQ_AccountHealthController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RIQ_DashboardController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <description
   >RenewalIQ read-only: reporting and executive access to health scores, signals and score history. No create, edit or delete.</description>
     <fieldPermissions>
@@ -117,6 +125,10 @@
     </tabSettings>
     <tabSettings>
         <tab>RIQ_Score_History__c</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>RIQ_Command_Center</tab>
         <visibility>Visible</visibility>
     </tabSettings>
 </PermissionSet>

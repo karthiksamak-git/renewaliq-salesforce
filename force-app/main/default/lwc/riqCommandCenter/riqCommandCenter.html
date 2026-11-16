@@ -1,0 +1,180 @@
+<template>
+  <article class="slds-card riq-cc">
+    <div class="slds-card__header slds-grid">
+      <header class="slds-media slds-media_center slds-has-flexi-truncate">
+        <div class="slds-media__figure">
+          <lightning-icon
+            icon-name="utility:heart"
+            size="small"
+            alternative-text=""
+            class="riq-cc__icon"
+          ></lightning-icon>
+        </div>
+        <div class="slds-media__body">
+          <h2 class="slds-card__header-title">
+            <span>Customer Health Command Center</span>
+          </h2>
+          <p class="slds-text-body_small slds-text-color_weak">
+            Where the book of business is losing health, and which renewals need attention first.
+          </p>
+        </div>
+      </header>
+    </div>
+
+    <div class="slds-card__body slds-card__body_inner">
+      <template if:true={isLoading}>
+        <div class="riq-cc__state">
+          <lightning-spinner alternative-text="Loading dashboard" size="medium"></lightning-spinner>
+        </div>
+      </template>
+
+      <template if:true={errorMessage}>
+        <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+          <span class="slds-assistive-text">error</span>
+          <h2>{errorMessage}</h2>
+          <div class="slds-notify__close">
+            <lightning-button label="Retry" variant="neutral" onclick={handleRetry}></lightning-button>
+          </div>
+        </div>
+      </template>
+
+      <template if:false={isLoading}>
+        <template if:false={errorMessage}>
+          <!-- KPI tiles -->
+          <div class="riq-cc__kpis">
+            <template for:each={kpiTiles} for:item="tile">
+              <div key={tile.key} data-key={tile.key}>
+                <div class={tile.boxClass}>
+                  <p class="slds-text-title_caps slds-text-color_weak">{tile.label}</p>
+                  <p class="riq-kpi__value">{tile.value}</p>
+                  <p class="slds-text-body_small slds-text-color_weak">{tile.hint}</p>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Filters -->
+          <div class="riq-cc__filters slds-grid slds-wrap slds-gutters">
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+              <lightning-combobox
+                name="owner"
+                label="Owner"
+                value={ownerId}
+                options={ownerOptions}
+                onchange={handleOwnerChange}
+                variant="label-hidden"
+                placeholder="All owners"
+              ></lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+              <lightning-combobox
+                name="status"
+                label="Health status"
+                value={statusFilter}
+                options={statusOptions}
+                onchange={handleStatusChange}
+                variant="label-hidden"
+              ></lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+              <lightning-combobox
+                name="window"
+                label="Renewal window"
+                value={windowDays}
+                options={windowOptions}
+                onchange={handleWindowChange}
+                variant="label-hidden"
+              ></lightning-combobox>
+            </div>
+          </div>
+
+          <div class="slds-grid slds-wrap slds-gutters riq-cc__body">
+            <!-- Status distribution -->
+            <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-3">
+              <div class="slds-box slds-theme_default riq-panel">
+                <h3 class="slds-text-heading_small">Status distribution</h3>
+
+                <template if:false={chartUnavailable}>
+                  <div class="riq-chart">
+                    <canvas class="riq-donut" role="img" aria-label="Accounts by health status"></canvas>
+                  </div>
+                </template>
+
+                <!-- SVG fallback: used when Chart.js cannot load
+                                     (Lightning Web Security hiding the global,
+                                     CSP, or the static resource failing). -->
+                <template if:true={chartUnavailable}>
+                  <svg
+                    class="riq-donut-fallback"
+                    viewBox="0 0 140 140"
+                    role="img"
+                    aria-label="Accounts by health status"
+                  >
+                    <circle class="riq-donut-track" cx="70" cy="70" r="54"></circle>
+                    <template for:each={segments} for:item="segment">
+                      <circle
+                        key={segment.label}
+                        class="riq-donut-segment"
+                        cx="70"
+                        cy="70"
+                        r="54"
+                        stroke={segment.color}
+                        stroke-dasharray={segment.dashArray}
+                        stroke-dashoffset={segment.dashOffset}
+                        transform="rotate(-90 70 70)"
+                      ></circle>
+                    </template>
+                    <text x="70" y="68" text-anchor="middle" class="riq-donut-total">{totalAccounts}</text>
+                    <text x="70" y="84" text-anchor="middle" class="riq-donut-caption">accounts</text>
+                  </svg>
+                </template>
+
+                <ul class="riq-legend">
+                  <template for:each={segments} for:item="segment">
+                    <li key={segment.label} class="riq-legend__item">
+                      <span class="riq-legend__swatch" style={segment.swatchStyle}></span>
+                      <span class="riq-legend__label">{segment.label}</span>
+                      <span class="slds-text-color_weak">{segment.count} · {segment.percentage}%</span>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+            </div>
+
+            <!-- At-risk table -->
+            <div class="slds-col slds-size_1-of-1 slds-large-size_2-of-3">
+              <div class="slds-box slds-theme_default riq-panel">
+                <h3 class="slds-text-heading_small">Accounts needing attention</h3>
+
+                <template if:true={showTable}>
+                  <div class="riq-table" style="height: 24rem">
+                    <lightning-datatable
+                      key-field="accountId"
+                      data={rows}
+                      columns={columns}
+                      sorted-by={sortedByColumn}
+                      sorted-direction={sortDirection}
+                      onsort={handleSort}
+                      onrowaction={handleRowAction}
+                      hide-checkbox-column
+                    ></lightning-datatable>
+                  </div>
+                </template>
+
+                <template if:true={showEmpty}>
+                  <div class="riq-empty">
+                    <lightning-icon icon-name="utility:check" size="small" alternative-text=""></lightning-icon>
+                    <p class="slds-text-body_regular">No accounts match these filters.</p>
+                    <p class="slds-text-body_small slds-text-color_weak">
+                      Try a wider renewal window or a different owner.
+                    </p>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </template>
+    </div>
+  </article>
+</template>

@@ -4,11 +4,13 @@
         <headerColor>#0B5CAB</headerColor>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
+    <defaultLandingTab>RIQ_Command_Center</defaultLandingTab>
     <description
   >Customer Health and Renewal Command Center: scores, churn risk and renewal work in one place.</description>
     <formFactors>Large</formFactors>
     <label>RenewalIQ</label>
     <navType>Standard</navType>
+    <tabs>RIQ_Command_Center</tabs>
     <tabs>standard-Account</tabs>
     <tabs>RIQ_Health_Signal__c</tabs>
     <tabs>RIQ_Score_History__c</tabs>

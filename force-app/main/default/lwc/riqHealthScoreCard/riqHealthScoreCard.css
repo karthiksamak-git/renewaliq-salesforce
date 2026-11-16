@@ -1,0 +1,138 @@
+.riq-card {
+  min-height: 16rem;
+}
+
+.riq-card__state {
+  position: relative;
+  min-height: 10rem;
+}
+
+.riq-gauge {
+  text-align: center;
+  padding-right: 0.75rem;
+}
+
+.riq-gauge svg {
+  width: 100%;
+  max-width: 10rem;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.riq-gauge__track {
+  fill: none;
+  stroke: #ecebea;
+  stroke-width: 12;
+}
+
+.riq-gauge__value {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dasharray 300ms ease-out;
+}
+
+.riq-gauge__score {
+  font-size: 2rem;
+  font-weight: 600;
+  fill: #080707;
+}
+
+.riq-gauge__caption {
+  font-size: 0.75rem;
+  fill: #706e6b;
+}
+
+.riq-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.riq-status__label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.riq-facts {
+  margin: 0 0 0.75rem;
+}
+
+.riq-facts__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #f3f2f2;
+  font-size: 0.8125rem;
+}
+
+.riq-facts__row dt {
+  color: #706e6b;
+}
+
+.riq-facts__row dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.riq-trend {
+  margin-top: 0.5rem;
+}
+
+.riq-sparkline {
+  width: 100%;
+  height: 3.5rem;
+  display: block;
+  background: linear-gradient(180deg, rgba(1, 118, 211, 0.08), rgba(1, 118, 211, 0));
+  border-radius: 0.25rem;
+}
+
+.riq-sparkline__line {
+  fill: none;
+  stroke: #0176d3;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.riq-drivers {
+  margin-top: 1rem;
+  border-top: 1px solid #f3f2f2;
+  padding-top: 0.75rem;
+}
+
+.riq-drivers__list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.riq-drivers__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #f7f7f7;
+  font-size: 0.8125rem;
+}
+
+.riq-drivers__name {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
+.riq-drivers__meta {
+  color: #706e6b;
+  font-size: 0.75rem;
+}
+
+.riq-drivers__points {
+  color: #ba0517;
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -1,0 +1,139 @@
+<template>
+  <article class="slds-card riq-card">
+    <div class="slds-card__header slds-grid">
+      <header class="slds-media slds-media_center slds-has-flexi-truncate">
+        <div class="slds-media__body">
+          <h2 class="slds-card__header-title">
+            <span>Health score</span>
+          </h2>
+        </div>
+      </header>
+      <div class="slds-no-flex">
+        <lightning-button
+          label="Recalculate now"
+          variant="brand"
+          icon-name="utility:refresh"
+          onclick={handleRecalculate}
+          disabled={isRecalculating}
+          title={recalculationHint}
+        ></lightning-button>
+      </div>
+    </div>
+
+    <div class="slds-card__body slds-card__body_inner">
+      <template if:true={isLoading}>
+        <div class="riq-card__state">
+          <lightning-spinner alternative-text="Loading health score" size="small"></lightning-spinner>
+        </div>
+      </template>
+
+      <template if:true={errorMessage}>
+        <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+          <span class="slds-assistive-text">error</span>
+          <h2>{errorMessage}</h2>
+        </div>
+      </template>
+
+      <template if:true={hasCard}>
+        <div class="riq-card__top slds-grid slds-wrap">
+          <!-- Gauge -->
+          <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 riq-gauge">
+            <svg viewBox="0 0 128 128" role="img" aria-label={gaugeLabel}>
+              <circle class="riq-gauge__track" cx="64" cy="64" r="52"></circle>
+              <circle
+                class="riq-gauge__value"
+                cx="64"
+                cy="64"
+                r="52"
+                stroke={gaugeColor}
+                stroke-dasharray={gaugeDash}
+                transform="rotate(-90 64 64)"
+              ></circle>
+              <text x="64" y="62" text-anchor="middle" class="riq-gauge__score">{scoreDisplay}</text>
+              <text x="64" y="82" text-anchor="middle" class="riq-gauge__caption">/ 100</text>
+            </svg>
+
+            <div class="riq-status">
+              <lightning-icon
+                icon-name={statusIcon}
+                size="x-small"
+                variant={statusVariant}
+                alternative-text={statusLabel}
+              ></lightning-icon>
+              <span class="riq-status__label">{statusLabel}</span>
+            </div>
+          </div>
+
+          <!-- Facts -->
+          <div class="slds-col slds-size_1-of-1 slds-medium-size_2-of-3">
+            <dl class="riq-facts">
+              <div class="riq-facts__row">
+                <dt>Churn probability</dt>
+                <dd>{churnDisplay}</dd>
+              </div>
+              <div class="riq-facts__row">
+                <dt>ARR</dt>
+                <dd>{arrDisplay}</dd>
+              </div>
+              <div class="riq-facts__row">
+                <dt>Contract ends</dt>
+                <dd>{renewalDisplay}</dd>
+              </div>
+              <div class="riq-facts__row">
+                <dt>Days to renewal</dt>
+                <dd>{daysToRenewalDisplay}</dd>
+              </div>
+              <div class="riq-facts__row">
+                <dt>Last scored</dt>
+                <dd>{lastScoredDisplay}</dd>
+              </div>
+            </dl>
+
+            <!-- Trend -->
+            <div class="riq-trend">
+              <p class="slds-text-title_caps slds-text-color_weak">Score trend</p>
+              <template if:true={hasHistory}>
+                <svg
+                  class="riq-sparkline"
+                  viewBox="0 0 240 56"
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label={historySummary}
+                >
+                  <polyline class="riq-sparkline__line" points={sparklinePoints}></polyline>
+                </svg>
+                <p class="slds-text-body_small slds-text-color_weak">{historySummary}</p>
+              </template>
+              <template if:false={hasHistory}>
+                <p class="slds-text-body_small slds-text-color_weak">{historySummary}</p>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drivers -->
+        <div class="riq-drivers">
+          <p class="slds-text-title_caps slds-text-color_weak">Top drivers</p>
+
+          <template if:true={hasDrivers}>
+            <ul class="riq-drivers__list">
+              <template for:each={drivers} for:item="driver">
+                <li key={driver.key} class="riq-drivers__item">
+                  <span class="riq-drivers__name">{driver.signalType}</span>
+                  <span class="riq-drivers__meta">{driver.severity}</span>
+                  <span class="riq-drivers__points">{driver.points}</span>
+                </li>
+              </template>
+            </ul>
+          </template>
+
+          <template if:false={hasDrivers}>
+            <p class="slds-text-body_small slds-text-color_weak">
+              No scoring drivers recorded yet. Recalculate after logging a signal.
+            </p>
+          </template>
+        </div>
+      </template>
+    </div>
+  </article>
+</template>

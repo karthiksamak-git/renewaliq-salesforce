@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <classAccesses>
+        <apexClass>RIQ_AccountHealthController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RIQ_DashboardController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>RIQ_Log_Health_Signals</name>
+    </customPermissions>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>RIQ_Recalculate_Health</name>
+    </customPermissions>
     <description
   >RenewalIQ Customer Success Manager: read/edit Accounts and health signals, read score history. Cannot delete signals or change score history.</description>
     <fieldPermissions>
@@ -142,6 +158,10 @@
     </tabSettings>
     <tabSettings>
         <tab>RIQ_Score_History__c</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>RIQ_Command_Center</tab>
         <visibility>Visible</visibility>
     </tabSettings>
 </PermissionSet>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description
+  >Allows logging a health signal from the UI. Granted to RIQ_Admin and RIQ_CSM only; enforced in Apex, not just by hiding the button.</description>
+    <isLicensed>false</isLicensed>
+    <label>RIQ Log Health Signals</label>
+</CustomPermission>

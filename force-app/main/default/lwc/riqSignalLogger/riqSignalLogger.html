@@ -1,0 +1,81 @@
+<template>
+  <article class="slds-card riq-logger">
+    <div class="slds-card__header slds-grid">
+      <header class="slds-media slds-media_center slds-has-flexi-truncate">
+        <div class="slds-media__body">
+          <h2 class="slds-card__header-title">
+            <span>Log a health signal</span>
+          </h2>
+          <p class="slds-text-body_small slds-text-color_weak">
+            Escalations, usage drops, missed QBRs — anything that should move the score.
+          </p>
+        </div>
+      </header>
+    </div>
+
+    <div class="slds-card__body slds-card__body_inner">
+      <template if:true={errorMessage}>
+        <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+          <span class="slds-assistive-text">error</span>
+          <h2>{errorMessage}</h2>
+        </div>
+      </template>
+
+      <template if:true={isScoreUpdating}>
+        <div class="riq-logger__status" role="status" aria-live="polite">
+          <lightning-spinner alternative-text="Score updating" size="small"></lightning-spinner>
+          <span>Score updating… the recalculation runs in the background.</span>
+        </div>
+      </template>
+
+      <form onsubmit={handleSubmit} class="riq-logger__form" novalidate>
+        <lightning-combobox
+          name="signalType"
+          label="Signal type"
+          value={signalType}
+          options={signalTypes}
+          placeholder="Choose a signal"
+          onchange={handleTypeChange}
+          required
+          message-when-value-missing={typeError}
+        ></lightning-combobox>
+
+        <lightning-combobox
+          name="severity"
+          label="Severity"
+          value={severity}
+          options={severityOptions}
+          onchange={handleSeverityChange}
+        ></lightning-combobox>
+
+        <lightning-input
+          type="date"
+          name="occurredOn"
+          label="Date it happened"
+          value={occurredOn}
+          max={today}
+          onchange={handleDateChange}
+          required
+          message-when-range-overflow={dateError}
+        ></lightning-input>
+
+        <lightning-textarea
+          name="notes"
+          label="Context (optional)"
+          value={notes}
+          onchange={handleNotesChange}
+          maxlength="1000"
+        ></lightning-textarea>
+
+        <div class="riq-logger__actions">
+          <lightning-button label="Log signal" variant="brand" type="submit" disabled={saveDisabled}></lightning-button>
+          <lightning-button label="Clear" onclick={handleReset}></lightning-button>
+        </div>
+
+        <template if:true={isSaving}>
+          <lightning-spinner alternative-text="Saving signal" size="small"></lightning-spinner>
+        </template>
+      </form>
+    </div>
+  </article>
+</template>

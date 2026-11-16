@@ -100,6 +100,41 @@ public class RIQ_TestDataFactory {
         };
     }
 
+    /** Makes repeated test-user creation unique inside one transaction. */
+    private static Integer userSequence = 0;
+
+    /**
+     * @description Creates a user and assigns the named permission sets, for
+     * tests that must run as a CSM or a read-only viewer.
+     * @param alias User alias, max 8 characters.
+     * @param permissionSetNames API names of permission sets to assign.
+     * @return The inserted user.
+     */
+    public static User createUserWithPermissionSets(String alias, List<String> permissionSetNames) {
+        userSequence++;
+        String uniqueSuffix = String.valueOf(DateTime.now().getTime()) + '-' + userSequence;
+        User user = new User(
+            Alias = alias,
+            Email = 'riq.user.' + uniqueSuffix + '@example.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'RenewalIQ Test User',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = minimumAccessProfileId(),
+            TimeZoneSidKey = 'America/Los_Angeles',
+            Username = 'riq.user.' + uniqueSuffix + '@example.com.invalid'
+        );
+
+        insert user;
+
+        for (String permissionSetName : permissionSetNames) {
+            PermissionSet permissionSet = [SELECT Id FROM PermissionSet WHERE Name = :permissionSetName LIMIT 1];
+            insert new PermissionSetAssignment(AssigneeId = user.Id, PermissionSetId = permissionSet.Id);
+        }
+
+        return user;
+    }
+
     /**
      * @return A profile available in every org edition for permission tests.
      */

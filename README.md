@@ -31,7 +31,7 @@ without a deployment.
 | Subscriber       | Turns an event into work, idempotently            | `RIQ_PlaybookService`                         |
 | Declarative      | Notification + feed post, admin-editable          | `RIQ_Account_Critical_Alert` (Flow)           |
 | Config           | Thresholds and weights, no hardcoded numbers      | `RIQ_Scoring_Rule__mdt`, `RIQ_Threshold__mdt`, `RIQ_Batch_Config__mdt` |
-| UI               | LWC dashboard + record components                 | `riqHealthDashboard`                          |
+| UI               | LWC command center + record components            | `riqCommandCenter`, `riqHealthScoreCard`, `riqSignalLogger` |
 
 ### How the score is calculated
 
@@ -142,6 +142,79 @@ manager. Everything with real logic — scoring, banding, event publishing,
 idempotent task/opportunity creation — stays in Apex, where it is bulk-safe,
 testable and reviewable.
 
+## The Lightning layer (Phase 4)
+
+```
+riqCommandCenter   (App Page)      KPIs · status donut · at-risk datatable · row action
+riqHealthScoreCard (Account page)  gauge · badge · churn · top-3 drivers · 12-point trend
+riqSignalLogger    (Account page)  validated form → Apex → "score updating…" → refresh
+riqUtils           (utility module) pure formatting + SVG geometry, unit tested directly
+```
+
+Two Apex controllers sit behind them, and all three components go through them rather
+than through their own SOQL:
+
+| Method | Cacheable | Why |
+| ------ | --------- | --- |
+| `RIQ_DashboardController.getKpis(ownerId, renewalWindowDays)` | yes | Pure read; the tile totals. |
+| `RIQ_DashboardController.getStatusDistribution(ownerId)` | yes | Pure read; one `GROUP BY` count, one row per band. |
+| `RIQ_DashboardController.getAtRiskAccounts(filters)` | yes | Pure read; server-side filter, sort and row cap. |
+| `RIQ_AccountHealthController.getHealthCard(accountId)` | yes | Pure read; wired on the record page. |
+| `RIQ_AccountHealthController.recalculate(accountId)` | **no** | It writes scores, history and possibly an event. |
+| `RIQ_AccountHealthController.logSignal(...)` | **no** | It inserts a signal. |
+
+### Aggregation belongs in the database
+
+Every number on the dashboard is a SOQL aggregate (`COUNT()`, `SUM()`, `AVG()`,
+`GROUP BY RIQ_Health_Status__c`) or a single flat query — never a query that loads 10,000
+accounts so Apex can add them up. That keeps the governor cost independent of the size of
+the book, and it means the KPI tile and the drill-down table are computed by the same
+engine that stores the data.
+
+### What the browser is allowed to decide
+
+The sort field is whitelisted in Apex (`SORT_FIELDS` map), the row count and renewal
+window are clamped server-side (50/200 rows, 730 days), and the status filter treats
+`All` as "At Risk + Critical" rather than "everything". Nothing from the client becomes
+a `Database.query` string.
+
+### Permissions are enforced twice
+
+`Recalculate` and `Log signal` are guarded by **Custom Permissions**
+(`RIQ_Recalculate_Health`, `RIQ_Log_Health_Signals`) checked with
+`FeatureManagement.checkPermission` inside the controller. `RIQ_Read_Only` therefore gets
+a friendly `AuraHandledException` if it calls the method directly — hiding a button in the
+component is a convenience for the user, never the control.
+
+### Charts without a CDN
+
+Chart.js 4.6.1 is a `devDependency`, and its UMD build is copied into the `chartjs`
+static resource and loaded with `loadScript`. Under Lightning Web Security the global can
+be hidden from the component, so if `loadScript` fails or `window.Chart` is missing the
+component renders a **pure SVG donut** built from the same segments by `riqUtils`. There
+is no blank panel and no third-party request at runtime.
+
+### Honest async
+
+Logging a signal queues a `Queueable`, so the score cannot be new the instant the form
+submits. `riqSignalLogger` says so: it shows a "Score updating…" state, then publishes on
+the `RIQ_Score_Refresh__c` Lightning Message channel; `riqHealthScoreCard` listens and
+calls `refreshApex` on its wired result. A score that silently changed would be worse than
+one that is visibly a few seconds behind.
+
+`riqCommandCenter` also subscribes to `/event/RIQ_Health_Status_Change__e` with empApi, so
+a band change from anyone's action toasts in and refreshes the tiles — and
+`disconnectedCallback` unsubscribes, because a leaked empApi subscription keeps firing
+against a destroyed component.
+
+### Testing the UI
+
+48 Jest tests: the pure helpers directly (donut geometry, sparkline scaling, gauge arc,
+currency/percent/days formatting), and each component through its rendered shadow DOM —
+loading, empty and error states, filter changes reaching Apex with the right arguments,
+datatable sort mapping, the row action, toasts, validation blocking submission, the
+"score updating" state, empApi subscribe/unsubscribe, and the Chart.js fallback.
+
 ## Flow vs Apex vs Platform Events vs Batch: when to use what
 
 | Tool | Use it when | Not for | In RenewalIQ |
@@ -168,7 +241,7 @@ scoring-rule contract.
 | 1     | Project scaffold, data model, permission sets, seed data | ✅     |
 | 2     | Health scoring engine + score history                    | ✅     |
 | 3     | Nightly batch, platform events, playbook automation      | ✅     |
-| 4     | LWC dashboard + Jest tests                               | ⬜     |
+| 4     | LWC dashboard + Jest tests                               | ✅     |
 | 5     | AI summary callout, async + callout mocks                | ⬜     |
 
 ## Prerequisites
@@ -218,12 +291,14 @@ force-app/main/default/
   customMetadata/   Scoring rules and status thresholds
   flexipages/       Lightning record pages
   flows/            RIQ_Account_Critical_Alert (record-triggered)
-  lwc/              Dashboard + record components (with Jest tests)
+  lwc/              Command center, score card, signal logger, shared helpers (+ Jest)
+  messageChannels/  RIQ_Score_Refresh (Lightning Message Service)
   notificationtypes/  RIQ_HealthAlert custom notification type
   objects/          Account fields, signals, score history, platform event, batch config
   permissionsets/   RIQ_Admin, RIQ_CSM, RIQ_Read_Only
   platformEventSubscriberConfigs/  Named subscriber user for the event trigger
-  tabs/             Custom object tabs
+  staticresources/  chartjs (Chart.js 4.6.1 UMD build, served from the org)
+  tabs/             Custom object tabs + the Command Center tab
 scripts/apex/       Anonymous Apex utilities (seeding, smoke tests)
 docs/               Interview notes and data model reference
 ```
@@ -232,3 +307,4 @@ docs/               Interview notes and data model reference
 
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) — objects, fields, scoring configuration
 - [docs/INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md) — design decisions per phase
+- [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) — screenshot checklist for the portfolio write-up

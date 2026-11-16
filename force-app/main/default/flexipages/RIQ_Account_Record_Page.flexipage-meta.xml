@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
     <description
-  >RenewalIQ Account record page. Placeholder layout that the health score, trend and AI summary components are added to in later phases.</description>
+  >RenewalIQ Account record page: highlights, details, the health score card (gauge, drivers, trend) and the signal logger. The AI summary panel is added in Phase 5.</description>
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
@@ -17,6 +17,18 @@
             <componentInstance>
                 <componentName>force:detailPanel</componentName>
                 <identifier>force_detailPanel</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>c:riqHealthScoreCard</componentName>
+                <identifier>riqHealthScoreCard</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>c:riqSignalLogger</componentName>
+                <identifier>riqSignalLogger</identifier>
             </componentInstance>
         </itemInstances>
         <name>main</name>

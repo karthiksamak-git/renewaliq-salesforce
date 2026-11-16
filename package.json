@@ -23,6 +23,7 @@
     "@prettier/plugin-xml": "^3.4.2",
     "@salesforce/eslint-config-lwc": "^4.1.2",
     "@salesforce/sfdx-lwc-jest": "^7.9.0",
+    "chart.js": "^4.6.1",
     "eslint": "^9.39.5",
     "prettier": "^3.10.0",
     "prettier-plugin-apex": "^2.3.0"

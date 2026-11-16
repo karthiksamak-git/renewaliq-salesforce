@@ -164,3 +164,46 @@ Because the suppression rule needs to be precise. If any open opportunity counte
 
 **13. How do you know 200 events are safe?**
 `RIQ_PlaybookService_Test.twoHundredEventsAreHandledInBulk` publishes 200 events, delivers them, and asserts 200 tasks and 200 opportunities. The service issues one Account query, one Task query, one Opportunity query and two inserts for the whole batch — no SOQL or DML inside a loop, which is the failure mode the test is designed to catch. The nightly batch is tested the same way with 201 accounts across two chunks, and asserts the stateful counters as well as the data.
+
+---
+
+## Phase 4 — Lightning Web Components
+
+**1. Why three components and a shared module instead of one dashboard component?**
+Because they have three different lifetimes. The command center is a page, the score card lives on the Account record page, and the signal logger is a form that writes data — putting them in one bundle would mean one bundle's worth of tests, one `@api recordId` that is meaningless on a page, and no way to place the card and the form in different regions of a record page. The shared pieces are exactly the things with no DOM: donut geometry, sparkline scaling, gauge arcs, currency/percent/day formatting. That module is a pure function library, which is why its tests are plain assertions instead of rendered components.
+
+**2. Why do the aggregates in SOQL rather than looping in Apex?**
+Every KPI on the command center is a `COUNT()`, `SUM()`, `AVG()` or a single `GROUP BY RIQ_Health_Status__c`, and the drill-down is one flat query. Loading 10,000 accounts into Apex to sum them would burn heap for a number the database computes in one pass, and it would make the dashboard's governor cost grow with the book of business. The query cost is now flat: one aggregate per tile, one grouped query for the donut, one query for the table.
+
+**3. When is `cacheable=true` correct, and when is it a bug?**
+Only when the method is a pure read of data the caller is allowed to see, with no side effects and nothing time-sensitive. `getKpis`, `getStatusDistribution`, `getAtRiskAccounts` and `getHealthCard` qualify. `recalculate` and `logSignal` do not, and marking them cacheable would be a correctness bug, not a performance win: the platform caches the response, so the second CSM to press the button would get a stale card and no recalculation would happen. The safest habit is that a method which writes is never cacheable, no matter how cheap it is.
+
+**4. How do you keep the dashboard and the record page agreeing on the same number?**
+Both read the fields the scorer writes (`RIQ_Health_Score__c`, `RIQ_Health_Status__c`, `RIQ_Churn_Probability__c`) — neither computes a score. So they cannot disagree, they can only be stale. Staleness is handled explicitly: the card is wired and cacheable, so after a mutation it calls `refreshApex` on the wired result rather than trusting the cache.
+
+**5. Why Custom Permissions checked in Apex instead of just hiding the buttons?**
+Hiding a button is a UX decision, not a security control: anyone can call an Apex method through the API, a Flow, or a hand-written LWC. `RIQ_Read_Only` has no `RIQ_Recalculate_Health` or `RIQ_Log_Health_Signals`, and both controller methods check `FeatureManagement.checkPermission` before touching data and throw an `AuraHandledException` with a readable message. The component hides the actions as a courtesy, and the Apex test suite proves the Read Only user is refused — the test calls the method directly, which is exactly what an attacker would do.
+
+**6. Why Chart.js from a static resource and not a CDN?**
+A CDN is a runtime dependency on a third party that may be blocked by CSP, by an org's network policy, or simply be down — and a dashboard that goes blank because of someone else's outage is not a portfolio piece. Chart.js 4.6.1 is a `devDependency`, its UMD build is copied into the `chartjs` static resource, and the component loads it with `loadScript` from the org's own domain.
+
+**7. What happens when Chart.js cannot load at all?**
+The component degrades instead of failing. `loadScript` failing, or `window.Chart` being hidden from the component's sandbox under Lightning Web Security, flips a flag and the template renders a **pure SVG donut** built by the same `buildDonutSegments` helper: each slice is a circle stroke with `stroke-dasharray`/`stroke-dashoffset` geometry. Same data, same colours, same legend, no external script. A Jest test forces `loadScript` to reject and asserts the SVG fallback renders four segments and no canvas, so the fallback cannot rot unnoticed.
+
+**8. Why is the at-risk table sorted and filtered on the server?**
+The table is a window onto data that may not fit in the browser. Sorting on the client would sort only the 100 rows that happen to be loaded, which is a lie about the book of business. So `getAtRiskAccounts` takes the filter, the sort field and the direction, maps the field through a whitelist (`SORT_FIELDS`) and applies `ORDER BY` in SOQL — and the component re-queries on `onsort` and on every filter change. Rows are capped at 50 by default and 200 maximum, and the renewal window is clamped to 730 days, because those values come from the client.
+
+**9. Why parse `Drivers__c` defensively?**
+Because it is a `LongTextArea` containing JSON written by a job, read by a UI, and potentially edited by hand in workbench. One malformed row must not break the page for every account. `parseDrivers` uses `JSON.deserializeUntyped` inside a `try/catch`, treats a non-list as empty, ignores entries that are not objects, coerces numeric points, and caps the list at five. A test feeds it unbalanced brackets, a bare string, an empty object and a mixed list, and asserts the card still renders — an exception there would be a UI outage caused by one bad character.
+
+**10. Why show "score updating" instead of the new score?**
+Because the score is not new yet. Logging a signal inserts a row, the trigger enqueues a Queueable, and the Queueable recalculates after the transaction commits. A component that claimed "your score is now 62" would be inventing a number. So the logger shows that work is in flight, and after a bounded wait publishes on the `RIQ_Score_Refresh__c` Lightning Message channel; the score card listens to that channel and calls `refreshApex` on its wired card. It is the honest version of an optimistic update: state what you know, then re-read.
+
+**11. Why subscribe to the platform event in the dashboard, and how do you avoid leaking it?**
+The command center is the screen a CSM leaves open. Without a subscription, a band change caused by someone else's action or by the nightly batch leaves the tiles stale until a manual refresh — the exact staleness the product exists to remove. `empApi.subscribe` to `/event/RIQ_Health_Status_Change__e` with replay id `-1` toasts the transition and reloads the tiles, and `disconnectedCallback` calls `unsubscribe`, because a subscription outliving its component keeps firing into a destroyed shadow root.
+
+**12. What do the Jest tests actually prove, and what do they not?**
+They prove behaviour: filters reach Apex with the right arguments, a datatable sort maps to the right server field, the row action calls `recalculate` and reloads, a failed call produces a friendly toast rather than a raw error, validation blocks submission before any call, the "updating" state appears and later publishes with the account id, empApi subscribes once and unsubscribes on disconnect, and the Chart.js fallback renders. Forty-eight tests across four suites. What they do not prove is that it *looks* right: Jest renders a shadow DOM, not a page. Gauge proportions, donut angles and responsive wrapping still need a human in a browser, which is why the screenshot checklist exists and why the honest claim here is "deployed, unit tested, not visually verified".
+
+**13. How is bulk safety preserved through the UI layer?**
+The UI never sends a set of records: each call is one account (the card, the logger, the row action) or one filtered query (the dashboard), so there is no client-side fan-out to go wrong. Where the UI does cause volume — one CSM recalculating, then a nightly batch over the whole book — it lands on the same `RIQ_HealthScoreRecalculator.process(Set<Id>)`, which is bulk-safe and covered by the Phase 2 and 3 tests. The Lightning layer adds no new write path.
