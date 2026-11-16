@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description
+  >Runtime configuration for the AI insight callout: whether it is on, which model to ask for, how many tokens and how long to wait. One record, disabled by default, so the whole app works with no API key and no outbound traffic.</description>
+    <label>AI Config</label>
+    <pluralLabel>AI Configs</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

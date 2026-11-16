@@ -209,11 +209,57 @@ against a destroyed component.
 
 ### Testing the UI
 
-48 Jest tests: the pure helpers directly (donut geometry, sparkline scaling, gauge arc,
+53 Jest tests: the pure helpers directly (donut geometry, sparkline scaling, gauge arc,
 currency/percent/days formatting), and each component through its rendered shadow DOM —
 loading, empty and error states, filter changes reaching Apex with the right arguments,
 datatable sort mapping, the row action, toasts, validation blocking submission, the
-"score updating" state, empApi subscribe/unsubscribe, and the Chart.js fallback.
+"score updating" state, empApi subscribe/unsubscribe, the Chart.js fallback, and the
+insight panel (stored summary, empty state, generate, refusal, permission-hidden button).
+
+## The integration layer (Phase 5)
+
+RenewalIQ integrates in two directions, and both are optional: with no API key and
+no inbound caller, every screen still works.
+
+**Outbound — a written insight per account.** `RIQ_AiInsightService` builds a
+deterministic prompt from the score, the status, the top five drivers, the ten most
+recent signals, ARR and the contract end date, and asks a language model for a
+summary, a next best action and up to three risk reasons as JSON. The call goes
+through a **Named Credential** (`RIQ_LLM_API`) over an **External Credential** whose
+custom `x-api-key` header is filled from the org's protected credential store, so no
+key exists in code, metadata, tests, documentation or git. An `RIQ_AI_Config__mdt`
+record decides whether the callout happens at all — it ships **disabled**, so the
+project is reproducible without anyone's key — and holds the model name, token cap
+and timeout, which means switching model or provider is an admin edit, not a
+deployment.
+
+The answer is treated as hostile input: code fences are stripped, both the Anthropic
+and OpenAI response shapes are read, missing fields are repaired and lengths are
+capped. Timeout, 429, 5xx, 400/401, empty or malformed content all land in the same
+place — a **rule-based insight** built from the score, drivers and signals, stored
+with `RIQ_AI_Source__c = 'Rule-based'` and shown with a **Rule based** badge instead
+of **AI generated**. The user never sees a raw error or an HTTP status, and a
+fallback can never be mistaken for a model answer.
+
+No callout runs inside a trigger, a batch, or after uncommitted DML. The record-page
+button calls the service first and then performs one update; the playbook path
+enqueues `RIQ_AiInsightQueueable`, which processes three accounts per job and chains
+the rest, so a 200-account run becomes short jobs instead of one that dies at the
+async limit.
+
+**Inbound — `POST /services/apexrest/riq/v1/signals`.** Up to 200 signals per
+request, with `externalId` as the idempotency key upserted onto a unique external-id
+field, so a retry updates instead of duplicating. Partial success is HTTP 200 with a
+per-row result array (`created` / `updated` / `skipped` / `error`); 400 is reserved
+for a body that cannot be read, 413 for more than 200 items. The resource is
+`with sharing` and runs in `USER_MODE` end to end, with a dedicated
+`RIQ_Integration_User` permission set as the caller's ceiling. Writing a signal
+through the API fires the same trigger path as logging one in the UI — there is no
+second write path.
+
+Details, including the exact setup steps for the credential, the provider switch and
+the curl/authentication walkthrough, are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
+and [docs/API.md](docs/API.md).
 
 ## Flow vs Apex vs Platform Events vs Batch: when to use what
 
@@ -242,7 +288,8 @@ scoring-rule contract.
 | 2     | Health scoring engine + score history                    | ✅     |
 | 3     | Nightly batch, platform events, playbook automation      | ✅     |
 | 4     | LWC dashboard + Jest tests                               | ✅     |
-| 5     | AI summary callout, async + callout mocks                | ⬜     |
+| 5     | LLM callout (Named/External Credential), inbound signal REST API | ✅     |
+| 6     | Security review: sharing, CRUD/FLS, injection, secret handling | ⬜     |
 
 ## Prerequisites
 
@@ -288,23 +335,27 @@ Apex formatting has to run on an unrestricted machine (CI works well for this).
 force-app/main/default/
   applications/     RenewalIQ app
   classes/          Apex service, selector, handler, test classes
-  customMetadata/   Scoring rules and status thresholds
+  customMetadata/   Scoring rules, status thresholds, RIQ AI Config (model, tokens, timeout, toggle)
+  externalCredentials/  RIQ_LLM_API principal with the x-api-key header (value never committed)
   flexipages/       Lightning record pages
   flows/            RIQ_Account_Critical_Alert (record-triggered)
   lwc/              Command center, score card, signal logger, shared helpers (+ Jest)
   messageChannels/  RIQ_Score_Refresh (Lightning Message Service)
   notificationtypes/  RIQ_HealthAlert custom notification type
-  objects/          Account fields, signals, score history, platform event, batch config
-  permissionsets/   RIQ_Admin, RIQ_CSM, RIQ_Read_Only
+  namedCredentials/ RIQ_LLM_API SecuredEndpoint pointing at the provider base URL
+  objects/          Account fields, signals, score history, platform event, batch config, AI config CMDT
+  permissionsets/   RIQ_Admin, RIQ_CSM, RIQ_Read_Only, RIQ_AI_Insight, RIQ_Integration_User
   platformEventSubscriberConfigs/  Named subscriber user for the event trigger
   staticresources/  chartjs (Chart.js 4.6.1 UMD build, served from the org)
   tabs/             Custom object tabs + the Command Center tab
-scripts/apex/       Anonymous Apex utilities (seeding, smoke tests)
+scripts/apex/       Anonymous Apex utilities (seeding, smoke tests, live callout check)
 docs/               Interview notes and data model reference
 ```
 
 ## Documentation
 
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) — objects, fields, scoring configuration
+- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) — LLM callout setup (credential, toggle, provider switch, troubleshooting)
+- [docs/API.md](docs/API.md) — inbound signal API: auth, payload, responses, idempotency, security
 - [docs/INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md) — design decisions per phase
 - [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) — screenshot checklist for the portfolio write-up

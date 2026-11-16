@@ -91,6 +91,24 @@ public with sharing class RIQ_AccountHealthController {
         /** True when the viewer may log a signal. */
         @AuraEnabled
         public Boolean canLogSignal = false;
+        /** True when the viewer may spend a model call to generate an insight. */
+        @AuraEnabled
+        public Boolean canGenerateInsight = false;
+        /** Written summary, model or rule based. */
+        @AuraEnabled
+        public String aiSummary;
+        /** Recommended next action. */
+        @AuraEnabled
+        public String nextBestAction;
+        /** Risk reasons, one per line in the field, a list here. */
+        @AuraEnabled
+        public List<String> aiRiskReasons = new List<String>();
+        /** AI or Rule-based, so a fallback is never passed off as a model answer. */
+        @AuraEnabled
+        public String aiSource;
+        /** When the summary was generated. */
+        @AuraEnabled
+        public DateTime aiGeneratedOn;
     }
 
     /**
@@ -128,6 +146,19 @@ public with sharing class RIQ_AccountHealthController {
             card.lastScored = account.RIQ_Last_Scored__c;
             card.canRecalculate = FeatureManagement.checkPermission('RIQ_Recalculate_Health');
             card.canLogSignal = FeatureManagement.checkPermission('RIQ_Log_Health_Signals');
+            card.canGenerateInsight = FeatureManagement.checkPermission('RIQ_Generate_AI_Insight');
+            card.aiSummary = account.RIQ_AI_Summary__c;
+            card.nextBestAction = account.RIQ_Next_Best_Action__c;
+            card.aiSource = account.RIQ_AI_Source__c;
+            card.aiGeneratedOn = account.RIQ_AI_Generated_On__c;
+
+            if (String.isNotBlank(account.RIQ_AI_Risk_Reasons__c)) {
+                for (String reason : account.RIQ_AI_Risk_Reasons__c.split('\n')) {
+                    if (String.isNotBlank(reason)) {
+                        card.aiRiskReasons.add(reason.trim());
+                    }
+                }
+            }
 
             if (!historyRows.isEmpty()) {
                 card.drivers = parseDrivers(historyRows[0].Drivers__c);
@@ -235,6 +266,55 @@ public with sharing class RIQ_AccountHealthController {
             throw userError('The signal could not be saved. Check the values and try again.');
         } catch (Exception failure) {
             throw handleFailure(failure, 'log the signal');
+        }
+    }
+
+    /**
+     * @description Generates the insight for one account and returns the fresh
+     * card. The callout happens before any DML in this transaction, so the
+     * platform's "callouts must precede DML" rule is respected; the write is a
+     * single update afterwards.
+     *
+     * The generative step is gated by a Custom Permission because every call can
+     * cost money at the model provider. Without it, a Read-Only user cannot even
+     * reach the code path, whether or not the component hid the button.
+     * @param accountId Account to summarise.
+     * @return The updated card.
+     */
+    @AuraEnabled
+    public static HealthCard generateInsight(Id accountId) {
+        if (accountId == null) {
+            throw userError('No account was supplied.');
+        }
+
+        if (!FeatureManagement.checkPermission('RIQ_Generate_AI_Insight')) {
+            throw userError('You do not have permission to generate AI insights.');
+        }
+
+        try {
+            List<Account> accounts = new RIQ_AccountSelector().getForAiInsight(new Set<Id>{ accountId });
+
+            if (accounts.isEmpty()) {
+                throw userError('That account does not exist, or you do not have access to it.');
+            }
+
+            List<RIQ_Score_History__c> historyRows = new RIQ_ScoreHistorySelector()
+                .getLatestForAccount(accountId, 1);
+            List<RIQ_Health_Signal__c> signals = new RIQ_HealthSignalSelector()
+                .getByAccountIds(new Set<Id>{ accountId });
+
+            RIQ_AiInsightService.Insight insight = RIQ_AiInsightService.generate(
+                accounts[0],
+                signals,
+                historyRows.isEmpty() ? null : historyRows[0].Drivers__c
+            );
+
+            RIQ_AiInsightService.persist(accountId, insight);
+            return getHealthCard(accountId);
+        } catch (AuraHandledException friendly) {
+            throw friendly;
+        } catch (Exception failure) {
+            throw handleFailure(failure, 'generate an insight for this account');
         }
     }
 

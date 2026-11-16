@@ -8,7 +8,17 @@
           </h2>
         </div>
       </header>
-      <div class="slds-no-flex">
+      <div class="slds-no-flex riq-card__actions">
+        <template if:true={showGenerateButton}>
+          <lightning-button
+            label="Generate AI insight"
+            variant="neutral"
+            icon-name="utility:einstein"
+            onclick={handleGenerateInsight}
+            disabled={isGenerating}
+            title="Ask the model for a summary, next best action and risk reasons. Gated by a custom permission."
+          ></lightning-button>
+        </template>
         <lightning-button
           label="Recalculate now"
           variant="brand"
@@ -131,6 +141,51 @@
             <p class="slds-text-body_small slds-text-color_weak">
               No scoring drivers recorded yet. Recalculate after logging a signal.
             </p>
+          </template>
+        </div>
+
+        <!-- AI insight -->
+        <div class="riq-insight">
+          <div class="riq-insight__header">
+            <p class="slds-text-title_caps slds-text-color_weak">Insight</p>
+            <span class={insightBadgeClass}>{insightSourceLabel}</span>
+            <template if:true={insightGeneratedDisplay}>
+              <span class="riq-insight__timestamp">{insightGeneratedDisplay}</span>
+            </template>
+          </div>
+
+          <template if:true={isGenerating}>
+            <div class="riq-insight__loading" role="status" aria-live="polite">
+              <lightning-spinner alternative-text="Generating insight" size="small"></lightning-spinner>
+              <span>Writing the insight…</span>
+            </div>
+          </template>
+
+          <template if:false={isGenerating}>
+            <template if:false={hasInsight}>
+              <p class="slds-text-body_small slds-text-color_weak">
+                No insight yet. Generate one to summarise this account for the next conversation.
+              </p>
+            </template>
+
+            <template if:true={hasInsight}>
+              <p class="riq-insight__summary">{insightSummary}</p>
+
+              <template if:true={insightNextAction}>
+                <p class="riq-insight__action">
+                  <span class="slds-text-title_caps slds-text-color_weak">Next best action</span>
+                  <span>{insightNextAction}</span>
+                </p>
+              </template>
+
+              <template if:true={insightReasons}>
+                <ul class="riq-insight__reasons">
+                  <template for:each={insightReasons} for:item="reason">
+                    <li key={reason}>{reason}</li>
+                  </template>
+                </ul>
+              </template>
+            </template>
           </template>
         </div>
       </template>

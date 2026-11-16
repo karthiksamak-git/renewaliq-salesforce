@@ -10,6 +10,10 @@
     </classAccesses>
     <customPermissions>
         <enabled>true</enabled>
+        <name>RIQ_Generate_AI_Insight</name>
+    </customPermissions>
+    <customPermissions>
+        <enabled>true</enabled>
         <name>RIQ_Log_Health_Signals</name>
     </customPermissions>
     <customPermissions>
@@ -18,6 +22,10 @@
     </customPermissions>
     <description
   >RenewalIQ administrator: full access to health signals, score history and all health fields on Account.</description>
+    <externalCredentialPrincipalAccesses>
+        <enabled>true</enabled>
+        <externalCredentialPrincipal>RIQ_LLM_API-RIQ LLM Principal</externalCredentialPrincipal>
+    </externalCredentialPrincipalAccesses>
     <fieldPermissions>
         <editable>true</editable>
         <field>Account.RIQ_AI_Summary__c</field>
@@ -96,6 +104,26 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>RIQ_Score_History__c.Status__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.RIQ_AI_Risk_Reasons__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.RIQ_AI_Source__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.RIQ_AI_Generated_On__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>RIQ_Health_Signal__c.RIQ_External_Key__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <hasActivationRequired>false</hasActivationRequired>

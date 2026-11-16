@@ -3,6 +3,7 @@ import { createElement } from 'lwc';
 import RiqHealthScoreCard from 'c/riqHealthScoreCard';
 import getHealthCard from '@salesforce/apex/RIQ_AccountHealthController.getHealthCard';
 import recalculate from '@salesforce/apex/RIQ_AccountHealthController.recalculate';
+import generateInsight from '@salesforce/apex/RIQ_AccountHealthController.generateInsight';
 import { MessageContext, subscribe, unsubscribe } from 'lightning/messageService';
 
 jest.mock(
@@ -14,6 +15,9 @@ jest.mock(
   { virtual: true }
 );
 jest.mock('@salesforce/apex/RIQ_AccountHealthController.recalculate', () => ({ default: jest.fn() }), {
+  virtual: true
+});
+jest.mock('@salesforce/apex/RIQ_AccountHealthController.generateInsight', () => ({ default: jest.fn() }), {
   virtual: true
 });
 jest.mock(
@@ -42,6 +46,12 @@ const CARD = {
   contractEndDate: '2026-12-31',
   lastScored: '2026-11-15T09:30:00.000Z',
   canRecalculate: true,
+  canGenerateInsight: true,
+  aiSummary: 'Usage is down and the sponsor left.',
+  nextBestAction: 'Book an executive call.',
+  aiRiskReasons: ['Sponsor departed', 'Usage down 30%'],
+  aiSource: 'AI',
+  aiGeneratedOn: '2026-11-15T10:00:00.000Z',
   drivers: [
     { signalType: 'Support Escalation', severity: 4, points: 22, explanation: 'Three P1s in 30 days' },
     { signalType: 'Usage Drop', severity: 3, points: 11, explanation: 'Active users down 30%' }
@@ -55,6 +65,14 @@ const CARD = {
 
 // A macrotask, not a microtask: LWC commits the DOM between them.
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Base components receive attributes as properties in the jest stubs, so
+ * buttons are addressed by label rather than by position.
+ */
+function buttonByLabel(element, label) {
+  return Array.from(element.shadowRoot.querySelectorAll('lightning-button')).find((button) => button.label === label);
+}
 
 async function createCard(props = { recordId: ACCOUNT_ID }) {
   const element = createElement('c-riq-health-score-card', { is: RiqHealthScoreCard });
@@ -146,7 +164,7 @@ describe('c-riq-health-score-card', () => {
     const toastHandler = jest.fn();
     element.addEventListener('lightning__showtoast', toastHandler);
 
-    element.shadowRoot.querySelector('lightning-button').click();
+    buttonByLabel(element, 'Recalculate now').click();
     await flushPromises();
     await flushPromises();
 
@@ -165,7 +183,7 @@ describe('c-riq-health-score-card', () => {
     const toastHandler = jest.fn();
     element.addEventListener('lightning__showtoast', toastHandler);
 
-    element.shadowRoot.querySelector('lightning-button').click();
+    buttonByLabel(element, 'Recalculate now').click();
     await flushPromises();
 
     const toast = toastHandler.mock.calls[0][0];
@@ -178,7 +196,7 @@ describe('c-riq-health-score-card', () => {
     getHealthCard.emit({ ...CARD, canRecalculate: false });
     await flushPromises();
 
-    const button = element.shadowRoot.querySelector('lightning-button');
+    const button = buttonByLabel(element, 'Recalculate now');
     expect(button.title).toBe('Your permission set does not allow recalculating scores.');
   });
 
@@ -193,5 +211,84 @@ describe('c-riq-health-score-card', () => {
 
     document.body.removeChild(element);
     expect(unsubscribe).toHaveBeenCalledWith('riq-refresh-sub');
+  });
+
+  it('renders the stored insight with its source badge', async () => {
+    const element = await createCard();
+    getHealthCard.emit(CARD);
+    await flushPromises();
+
+    expect(element.shadowRoot.querySelector('.riq-insight__summary').textContent).toBe(
+      'Usage is down and the sponsor left.'
+    );
+    expect(element.shadowRoot.querySelector('.riq-insight__badge').textContent).toBe('AI generated');
+    expect(element.shadowRoot.querySelectorAll('.riq-insight__reasons li')).toHaveLength(2);
+    expect(element.shadowRoot.textContent).toContain('Book an executive call.');
+  });
+
+  it('shows an empty state before anything is generated', async () => {
+    const element = await createCard();
+    getHealthCard.emit({
+      ...CARD,
+      aiSummary: null,
+      aiSource: null,
+      aiGeneratedOn: null,
+      aiRiskReasons: []
+    });
+    await flushPromises();
+
+    expect(element.shadowRoot.textContent).toContain('No insight yet');
+    expect(element.shadowRoot.querySelector('.riq-insight__badge').textContent).toBe('Not generated');
+  });
+
+  it('generates an insight and renders what came back', async () => {
+    generateInsight.mockResolvedValue({
+      ...CARD,
+      aiSummary: 'Fresh summary.',
+      aiSource: 'Rule-based',
+      aiRiskReasons: ['One reason']
+    });
+    const element = await createCard();
+    getHealthCard.emit(CARD);
+    await flushPromises();
+
+    const toastHandler = jest.fn();
+    element.addEventListener('lightning__showtoast', toastHandler);
+
+    buttonByLabel(element, 'Generate AI insight').click();
+    await flushPromises();
+
+    expect(generateInsight).toHaveBeenCalledWith({ accountId: ACCOUNT_ID });
+    expect(element.shadowRoot.querySelector('.riq-insight__summary').textContent).toBe('Fresh summary.');
+    expect(element.shadowRoot.querySelector('.riq-insight__badge').textContent).toBe('Rule based');
+    expect(toastHandler.mock.calls[0][0].detail.title).toBe('Insight generated');
+  });
+
+  it('toasts a friendly error when insight generation is refused', async () => {
+    generateInsight.mockRejectedValue({
+      body: { message: 'You do not have permission to generate AI insights.' }
+    });
+    const element = await createCard();
+    getHealthCard.emit(CARD);
+    await flushPromises();
+
+    const toastHandler = jest.fn();
+    element.addEventListener('lightning__showtoast', toastHandler);
+
+    buttonByLabel(element, 'Generate AI insight').click();
+    await flushPromises();
+
+    const toast = toastHandler.mock.calls[0][0];
+    expect(toast.detail.variant).toBe('error');
+    expect(toast.detail.message).toBe('You do not have permission to generate AI insights.');
+  });
+
+  it('hides the generate button without the custom permission', async () => {
+    const element = await createCard();
+    getHealthCard.emit({ ...CARD, canGenerateInsight: false });
+    await flushPromises();
+
+    expect(buttonByLabel(element, 'Generate AI insight')).toBeUndefined();
+    expect(buttonByLabel(element, 'Recalculate now')).toBeDefined();
   });
 });

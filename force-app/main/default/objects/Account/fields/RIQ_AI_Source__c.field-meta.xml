@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RIQ_AI_Source__c</fullName>
+    <description
+  >Where the current summary came from: AI for a model response, Rule-based for the deterministic fallback. Shown as a badge so nobody mistakes a fallback for a model output.</description>
+    <externalId>false</externalId>
+    <label>AI Source</label>
+    <length>20</length>
+    <type>Text</type>
+</CustomField>

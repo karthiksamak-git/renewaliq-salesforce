@@ -45,4 +45,28 @@ public with sharing class RIQ_ScoreHistorySelector extends RIQ_Selector {
         Map<String, Object> binds = new Map<String, Object>{ 'accountId' => accountId, 'rowLimit' => rowLimit };
         return (List<RIQ_Score_History__c>) query(soql, binds);
     }
+
+    /**
+     * @description Recent history for several accounts in one query, newest
+     * first. Callers take the first row per account; the row limit is what keeps
+     * a multi-account job from pulling a year of history it does not need.
+     * @param accountIds Accounts to read.
+     * @param rowLimit Maximum rows across all accounts.
+     * @return History ordered newest first; empty when no ids are supplied.
+     */
+    public List<RIQ_Score_History__c> getRecentForAccounts(Set<Id> accountIds, Integer rowLimit) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return new List<RIQ_Score_History__c>();
+        }
+
+        String soql =
+            'SELECT ' +
+            String.join(FIELDS, ', ') +
+            ' FROM RIQ_Score_History__c' +
+            ' WHERE Account__c IN :accountIds' +
+            ' ORDER BY Calculated_On__c DESC, Id DESC' +
+            ' LIMIT :rowLimit';
+        Map<String, Object> binds = new Map<String, Object>{ 'accountIds' => accountIds, 'rowLimit' => rowLimit };
+        return (List<RIQ_Score_History__c>) query(soql, binds);
+    }
 }

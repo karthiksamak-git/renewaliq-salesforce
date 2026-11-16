@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RIQ_External_Key__c</fullName>
+    <description
+  >Idempotency key from the calling system, used as the upsert external id for inbound REST signals. Unique, so a retried delivery updates the existing signal instead of duplicating it.</description>
+    <externalId>true</externalId>
+    <label>External Key</label>
+    <length>120</length>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

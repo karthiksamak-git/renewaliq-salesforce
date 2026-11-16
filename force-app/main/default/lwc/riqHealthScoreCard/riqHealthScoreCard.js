@@ -5,6 +5,7 @@ import { subscribe, unsubscribe, MessageContext } from 'lightning/messageService
 import SCORE_REFRESH from '@salesforce/messageChannel/RIQ_Score_Refresh__c';
 import getHealthCard from '@salesforce/apex/RIQ_AccountHealthController.getHealthCard';
 import recalculate from '@salesforce/apex/RIQ_AccountHealthController.recalculate';
+import generateInsight from '@salesforce/apex/RIQ_AccountHealthController.generateInsight';
 import {
   buildSparklinePoints,
   daysLabel,
@@ -24,6 +25,7 @@ export default class RiqHealthScoreCard extends LightningElement {
   errorMessage;
   isLoading = true;
   isRecalculating = false;
+  isGenerating = false;
   wiredResult;
   subscription;
 
@@ -91,6 +93,40 @@ export default class RiqHealthScoreCard extends LightningElement {
       await refreshApex(this.wiredResult);
     } catch (error) {
       this.errorMessage = this.reduceError(error);
+    }
+  }
+
+  /**
+   * Generates the written insight. The callout happens inside the Apex method,
+   * before any DML, so the platform's "callouts precede DML" rule is respected;
+   * the returned card is the written-through value, not an optimistic guess.
+   */
+  async handleGenerateInsight() {
+    this.isGenerating = true;
+
+    try {
+      this.card = await generateInsight({ accountId: this.recordId });
+
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: 'Insight generated',
+          message:
+            this.card.aiSource === 'AI'
+              ? 'Written by the model.'
+              : 'Written by rules: the model is off or unavailable.',
+          variant: 'success'
+        })
+      );
+    } catch (error) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: 'Could not generate an insight',
+          message: this.reduceError(error),
+          variant: 'error'
+        })
+      );
+    } finally {
+      this.isGenerating = false;
     }
   }
 
@@ -282,6 +318,56 @@ export default class RiqHealthScoreCard extends LightningElement {
     return this.canRecalculate
       ? 'Re-scores this account from its current signals.'
       : 'Your permission set does not allow recalculating scores.';
+  }
+
+  get hasInsight() {
+    return !!(this.card && this.card.aiSummary);
+  }
+
+  get showGenerateButton() {
+    return !!(this.card && this.card.canGenerateInsight);
+  }
+
+  /**
+   * The badge is the honesty mechanism: a fallback summary must never look
+   * like something the model wrote.
+   */
+  get insightSourceLabel() {
+    if (!this.card || !this.card.aiSource) {
+      return 'Not generated';
+    }
+
+    return this.card.aiSource === 'AI' ? 'AI generated' : 'Rule based';
+  }
+
+  get insightBadgeClass() {
+    return this.card && this.card.aiSource === 'AI' ? 'riq-insight__badge riq-insight__badge_ai' : 'riq-insight__badge';
+  }
+
+  get insightSummary() {
+    return this.card ? this.card.aiSummary : null;
+  }
+
+  get insightNextAction() {
+    return this.card ? this.card.nextBestAction : null;
+  }
+
+  get insightReasons() {
+    return this.card && this.card.aiRiskReasons ? this.card.aiRiskReasons : [];
+  }
+
+  get insightGeneratedDisplay() {
+    if (!this.card || !this.card.aiGeneratedOn) {
+      return null;
+    }
+
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(new Date(this.card.aiGeneratedOn));
   }
 
   reduceError(error) {

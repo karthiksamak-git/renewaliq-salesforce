@@ -53,7 +53,30 @@ public class RIQ_AccountSelector extends RIQ_Selector {
 
         String soql =
             'SELECT Id, Name, OwnerId, Owner.Name, RIQ_ARR__c, RIQ_Contract_End_Date__c,' +
-            ' RIQ_Health_Score__c, RIQ_Health_Status__c, RIQ_Churn_Probability__c, RIQ_Last_Scored__c' +
+            ' RIQ_Health_Score__c, RIQ_Health_Status__c, RIQ_Churn_Probability__c, RIQ_Last_Scored__c,' +
+            ' RIQ_AI_Summary__c, RIQ_Next_Best_Action__c, RIQ_AI_Risk_Reasons__c, RIQ_AI_Source__c,' +
+            ' RIQ_AI_Generated_On__c' +
+            ' FROM Account' +
+            ' WHERE Id IN :accountIds';
+        Map<String, Object> binds = new Map<String, Object>{ 'accountIds' => accountIds };
+        return (List<Account>) query(soql, binds);
+    }
+
+    /**
+     * @description Loads exactly what an AI insight needs. Separate from the
+     * card query so the prompt-building path cannot accidentally pull in fields
+     * that must never leave the org.
+     * @param accountIds Accounts to load.
+     * @return Accounts in the supplied id set.
+     */
+    public List<Account> getForAiInsight(Set<Id> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return new List<Account>();
+        }
+
+        String soql =
+            'SELECT Id, Name, RIQ_ARR__c, RIQ_Contract_End_Date__c, RIQ_Health_Score__c,' +
+            ' RIQ_Health_Status__c' +
             ' FROM Account' +
             ' WHERE Id IN :accountIds';
         Map<String, Object> binds = new Map<String, Object>{ 'accountIds' => accountIds };

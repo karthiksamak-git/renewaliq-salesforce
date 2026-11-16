@@ -101,8 +101,32 @@ public with sharing class RIQ_PlaybookService {
         result.tasksCreated = insertTasks(tasksToInsert);
         result.opportunitiesCreated = insertOpportunities(opportunitiesToInsert);
         result.failureCount = (tasksToInsert.size() - result.tasksCreated) + (opportunitiesToInsert.size() - result.opportunitiesCreated);
+        result.insightJobQueued = enqueueInsightJob(accountIds);
 
         return result;
+    }
+
+    /**
+     * @description Hands insight generation to a Queueable instead of calling the
+     * model here. This runs inside a platform event trigger, which already holds
+     * uncommitted DML, so a callout is illegal and a slow model would hold the
+     * subscriber transaction open. Failure to enqueue is not a playbook failure:
+     * the task and the renewal still matter more than a summary.
+     * @param accountIds Accounts that moved into a risky band.
+     * @return True when the job was accepted.
+     */
+    private static Boolean enqueueInsightJob(Set<Id> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return false;
+        }
+
+        try {
+            System.enqueueJob(new RIQ_AiInsightQueueable(accountIds));
+            return true;
+        } catch (Exception enqueueFailure) {
+            System.debug(LoggingLevel.WARN, 'RenewalIQ: insight job was not enqueued - ' + enqueueFailure.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -281,5 +305,7 @@ public with sharing class RIQ_PlaybookService {
         public Integer skippedCount = 0;
         /** Inserts that failed. */
         public Integer failureCount = 0;
+        /** True when background insight generation was accepted for this batch. */
+        public Boolean insightJobQueued = false;
     }
 }

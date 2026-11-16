@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Max_Tokens__c</fullName>
+    <description>Response budget. The summaries are two short paragraphs, so keep this small: it is the cost control.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Max Tokens</label>
+    <precision>5</precision>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

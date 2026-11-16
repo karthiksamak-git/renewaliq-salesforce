@@ -107,13 +107,25 @@ sf org assign permset --name RIQ_Admin --target-org RenewalIQ
 - **Caption material:** "The event is consumed by a named subscriber user, so the audit
   trail says who did the work instead of 'Automated Process'."
 
+## 11. The AI insight panel (Phase 5)
+
+- **Screen:** the health score card of a risky account, after **Generate AI insight**.
+- **Must show:** the **Insight** heading with its source badge, the summary paragraph, the
+  **Next best action** block and up to three risk reasons, plus the generated timestamp.
+- **Two shots, both useful:** one with `RIQ AI Config.Default.Is_Enabled__c` **on** and a real
+  key (badge reads **AI generated**), and one with it **off** (badge reads **Rule based**).
+
+  The pair is the caption material: "the same screen makes it obvious whether a machine
+  wrote the sentence or the rules did."
+
 ---
 
 ## What is *not* verified in this repository
 
 The components were deployed to the org and their bundles compiled, and the behaviour is
-covered by 48 Jest tests (rendering, filters, sort, row action, recalculate, validation,
-toast, subscribe/unsubscribe, empty and error states) plus the Apex tests behind them.
-Nobody has clicked through the rendered pages in a browser as part of the build, so the
-visual items above — gauge proportions, donut angles, sparkline shape, responsive
-wrapping — are the ones to confirm when the screenshots are taken.
+covered by 53 Jest tests (rendering, filters, sort, row action, recalculate, insight panel,
+validation, toast, subscribe/unsubscribe, empty and error states) plus the Apex tests behind
+them. Nobody has clicked through the rendered pages in a browser as part of the build, so
+the visual items above — gauge proportions, donut angles, sparkline shape, responsive
+wrapping, the insight panel's wrapping at narrow widths — are the ones to confirm when the
+screenshots are taken.

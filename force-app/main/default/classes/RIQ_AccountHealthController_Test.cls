@@ -449,4 +449,121 @@ private class RIQ_AccountHealthController_Test {
         System.assertEquals(2, RIQ_AccountHealthController.parseDrivers(VALID_DRIVERS).size());
         Test.stopTest();
     }
+
+    /**
+     * @description The button spends money at the model provider, so the right to
+     * press it is a Custom Permission checked in Apex. A Read-Only user calling
+     * the method directly (which is what hiding a button does not stop) is refused.
+     */
+    @IsTest
+    static void generateInsightRequiresTheCustomPermission() {
+        Account account = createAccount('RIQ Insight Permission');
+        User readOnly = userByAlias('riqro');
+
+        Test.startTest();
+        Boolean refused = false;
+        System.runAs(readOnly) {
+            try {
+                RIQ_AccountHealthController.generateInsight(account.Id);
+            } catch (AuraHandledException friendly) {
+                refused = true;
+                System.assert(friendly.getMessage().contains('permission'), 'The message explains the refusal.');
+            }
+        }
+        Test.stopTest();
+
+        System.assert(refused, 'A Read-Only user must not be able to generate insights.');
+        Account untouched = [SELECT RIQ_AI_Summary__c FROM Account WHERE Id = :account.Id];
+        System.assertEquals(null, untouched.RIQ_AI_Summary__c);
+    }
+
+    /**
+     * @description With the shipped configuration (disabled) and no API key, the
+     * button still produces something useful: a rule-based insight written to the
+     * account, with the source recorded so it cannot be mistaken for a model answer.
+     */
+    @IsTest
+    static void generateInsightFallsBackToRulesWithoutAKey() {
+        Account account = createAccount('RIQ Insight Rules');
+        addHistory(account.Id, 42, 'At Risk', DateTime.now(), VALID_DRIVERS);
+        User csm = userByAlias('riqcsm');
+
+        Test.startTest();
+        RIQ_AccountHealthController.HealthCard card;
+        System.runAs(csm) {
+            card = RIQ_AccountHealthController.generateInsight(account.Id);
+        }
+        Test.stopTest();
+
+        System.assertEquals('Rule-based', card.aiSource);
+        System.assertEquals('Rule-based', card.canGenerateInsight ? card.aiSource : null);
+        System.assert(String.isNotBlank(card.aiSummary));
+        System.assert(String.isNotBlank(card.nextBestAction));
+        System.assertNotEquals(null, card.aiGeneratedOn);
+        System.assert(card.aiRiskReasons.size() > 0, 'The fallback names at least one reason.');
+
+        Account stored = [
+            SELECT RIQ_AI_Summary__c, RIQ_AI_Source__c, RIQ_AI_Generated_On__c
+            FROM Account
+            WHERE Id = :account.Id
+        ];
+        System.assert(String.isNotBlank(stored.RIQ_AI_Summary__c), 'The insight is persisted on the account.');
+        System.assertEquals('Rule-based', stored.RIQ_AI_Source__c);
+    }
+
+    /**
+     * @description The card must expose the stored insight so the component can
+     * render it without a second request.
+     */
+    @IsTest
+    static void cardExposesTheStoredInsight() {
+        Account account = createAccount('RIQ Insight Card');
+        account.RIQ_AI_Summary__c = 'Stored summary.';
+        account.RIQ_Next_Best_Action__c = 'Stored action.';
+        account.RIQ_AI_Risk_Reasons__c = 'Reason one\nReason two\n\n';
+        account.RIQ_AI_Source__c = 'AI';
+        account.RIQ_AI_Generated_On__c = DateTime.now();
+        update account;
+
+        Test.startTest();
+        RIQ_AccountHealthController.HealthCard card = RIQ_AccountHealthController.getHealthCard(account.Id);
+        Test.stopTest();
+
+        System.assertEquals('Stored summary.', card.aiSummary);
+        System.assertEquals('Stored action.', card.nextBestAction);
+        System.assertEquals('AI', card.aiSource);
+        System.assertEquals(2, card.aiRiskReasons.size(), 'Blank lines are dropped.');
+        System.assertNotEquals(null, card.aiGeneratedOn);
+    }
+
+    @IsTest
+    static void generateInsightRejectsANullAccount() {
+        Test.startTest();
+        Boolean rejected = false;
+
+        try {
+            RIQ_AccountHealthController.generateInsight(null);
+        } catch (AuraHandledException friendly) {
+            rejected = true;
+        }
+
+        Test.stopTest();
+        System.assert(rejected);
+    }
+
+    @IsTest
+    static void generateInsightRejectsAnUnknownAccount() {
+        Test.startTest();
+        Boolean rejected = false;
+
+        try {
+            RIQ_AccountHealthController.generateInsight('001000000000001AAA');
+        } catch (AuraHandledException friendly) {
+            rejected = true;
+            System.assert(friendly.getMessage().contains('not exist'), 'The message explains the miss.');
+        }
+
+        Test.stopTest();
+        System.assert(rejected);
+    }
 }
