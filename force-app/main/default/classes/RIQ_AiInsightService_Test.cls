@@ -12,7 +12,7 @@ private class RIQ_AiInsightService_Test {
     private static RIQ_AiInsightService.Config enabledConfig() {
         RIQ_AiInsightService.Config config = new RIQ_AiInsightService.Config();
         config.isEnabled = true;
-        config.modelName = 'llama-3.3-70b-versatile';
+        config.modelName = 'openai/gpt-oss-120b';
         config.maxTokens = 400;
         config.timeoutSeconds = 30;
         return config;
@@ -372,7 +372,7 @@ private class RIQ_AiInsightService_Test {
         String body = RIQ_AiInsightService.buildRequestBody(enabledConfig(), 'Hello prompt');
         Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(body);
 
-        System.assertEquals('llama-3.3-70b-versatile', parsed.get('model'));
+        System.assertEquals('openai/gpt-oss-120b', parsed.get('model'));
         System.assertEquals(400, ((Decimal) parsed.get('max_tokens')).intValue());
         System.assertEquals(0.2, ((Decimal) parsed.get('temperature')).doubleValue(), 'Low temperature keeps the prose repeatable.');
         System.assertEquals('json_object', ((Map<String, Object>) parsed.get('response_format')).get('type'));
@@ -402,7 +402,7 @@ private class RIQ_AiInsightService_Test {
         Test.stopTest();
 
         Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(recorder.lastBody);
-        System.assertEquals('llama-3.3-70b-versatile', body.get('model'));
+        System.assertEquals('openai/gpt-oss-120b', body.get('model'));
         System.assertNotEquals(null, body.get('response_format'), 'JSON mode is requested, so the reply is parseable by contract.');
         System.assertEquals(2, ((List<Object>) body.get('messages')).size());
         System.assert(!recorder.lastBody.contains('Jane'), 'Notes must never reach the model.');

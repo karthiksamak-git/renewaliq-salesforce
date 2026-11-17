@@ -12,7 +12,7 @@
     </values>
     <values>
         <field>Model_Name__c</field>
-        <value xsi:type="xsd:string">llama-3.3-70b-versatile</value>
+        <value xsi:type="xsd:string">openai/gpt-oss-120b</value>
     </values>
     <values>
         <field>Provider__c</field>

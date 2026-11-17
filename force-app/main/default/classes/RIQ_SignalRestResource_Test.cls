@@ -257,15 +257,19 @@ private class RIQ_SignalRestResource_Test {
     static void integrationUserCanPostWithOnlyItsPermissionSet() {
         User integrationUser = userByAlias('riqapi');
         Account account = accounts(1)[0];
-        String body = JSON.serialize(
-            new List<Object>{ item('ext-runas-1', account.Id, SIGNAL_TYPE, String.valueOf(Date.today())) }
-        );
 
         Test.startTest();
         System.runAs(integrationUser) {
+            // "Today" has to be the caller's today: Date.today() follows the running
+            // user's time zone, and this user is not the one who created the account.
+            // Building the body outside the runAs made the test fail only in the
+            // window where IST and the user's zone are on different calendar days.
+            String body = JSON.serialize(
+                new List<Object>{ item('ext-runas-1', account.Id, SIGNAL_TYPE, String.valueOf(Date.today())) }
+            );
             RestResponse response = post(body);
             System.assertEquals(200, response.statusCode);
-            System.assertEquals(1, payload(response).created);
+            System.assertEquals(1, payload(response).created, response.responseBody.toString());
         }
         Test.stopTest();
 

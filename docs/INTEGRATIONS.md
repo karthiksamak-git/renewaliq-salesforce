@@ -25,7 +25,7 @@ RIQ_LLM_API        Named Credential      SecuredEndpoint, https://api.groq.com
 RIQ_AI_Config__mdt Custom Metadata       one record "Default": Is_Enabled__c = false,
                                           Provider__c = Groq,
                                           Request_Path__c = /openai/v1/chat/completions,
-                                          Model_Name__c = llama-3.3-70b-versatile,
+                                          Model_Name__c = openai/gpt-oss-120b,
                                           Max_Tokens__c = 400, Timeout_Seconds__c = 30
 RIQ_AI_Insight     Permission Set        principal access + RIQ_Generate_AI_Insight + AI fields
 ```
@@ -77,7 +77,7 @@ body:
 
 ```json
 {
-  "model": "llama-3.3-70b-versatile",
+  "model": "openai/gpt-oss-120b",
   "messages": [
     { "role": "system", "content": "You are a customer success analyst ... JSON only ..." },
     { "role": "user", "content": "<deterministic account data>" }
@@ -208,7 +208,8 @@ specific account id to target a record.
 | always `Rule-based`, log shows 429 with `Retry-After` | you are over the provider's free-tier rate limit; the app falls back on purpose and does not retry |
 | always `Rule-based`, log says 400 | `Request_Path__c` and the provider disagree, or `Model_Name__c` is not a model that provider serves |
 | log says 403 / "principal access" | user lacks External Credential Principal Access |
-| log says 404 | `Request_Path__c` has a typo — it is appended verbatim to the Named Credential URL |
+| log says 404 | `Request_Path__c` has a typo — it is appended verbatim to the Named Credential URL. If the path is right, the **model id is wrong or retired**: Groq answers `404 model_not_found`, and `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer <key>"` lists what the key can actually use. `llama-3.3-70b-versatile` was withdrawn; the shipped default is `openai/gpt-oss-120b` |
+| log says 400 `json_validate_failed` | JSON mode was requested but the model could not produce valid JSON in the token budget — raise `Max_Tokens__c` (400 works for `openai/gpt-oss-120b`) |
 | nothing happens at all | `Is_Enabled__c` is still false |
 | `AuraHandledException: You do not have permission` | `RIQ_Generate_AI_Insight` not assigned |
 | works in one org, not another | `RIQ_LLM_API` points at a different base URL, or the config record differs |

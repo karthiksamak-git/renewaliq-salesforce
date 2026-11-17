@@ -8,7 +8,7 @@
 public class RIQ_CalloutMocks {
     /** A well-formed Groq chat completion wrapping an insight in message.content. */
     public static final String GROQ_SUCCESS_BODY =
-        '{"id":"chatcmpl-1","object":"chat.completion","model":"llama-3.3-70b-versatile",' +
+        '{"id":"chatcmpl-1","object":"chat.completion","model":"openai/gpt-oss-120b",' +
         '"choices":[{"index":0,"message":{"role":"assistant","content":' +
         JSON.serialize(
             '{"summary":"Usage is down and the sponsor left.","nextBestAction":"Book an executive call.",' +

@@ -53,7 +53,7 @@ public with sharing class RIQ_AiInsightService {
         /** Master switch: false means no callout at all. */
         public Boolean isEnabled = false;
         /** Model identifier sent in the body. */
-        public String modelName = 'llama-3.3-70b-versatile';
+        public String modelName = 'openai/gpt-oss-120b';
         /** Which OpenAI-compatible provider this targets; operator documentation. */
         public String provider = 'Groq';
         /** Path appended to the Named Credential URL. */
