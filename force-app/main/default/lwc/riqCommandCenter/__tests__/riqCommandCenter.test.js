@@ -4,6 +4,7 @@ import RiqCommandCenter from 'c/riqCommandCenter';
 import getKpis from '@salesforce/apex/RIQ_DashboardController.getKpis';
 import getStatusDistribution from '@salesforce/apex/RIQ_DashboardController.getStatusDistribution';
 import getAtRiskAccounts from '@salesforce/apex/RIQ_DashboardController.getAtRiskAccounts';
+import getRowCount from '@salesforce/apex/RIQ_DashboardController.getRowCount';
 import getOwners from '@salesforce/apex/RIQ_DashboardController.getOwners';
 import recalculate from '@salesforce/apex/RIQ_AccountHealthController.recalculate';
 import { subscribe, unsubscribe } from 'lightning/empApi';
@@ -16,6 +17,7 @@ jest.mock('@salesforce/apex/RIQ_DashboardController.getStatusDistribution', () =
 jest.mock('@salesforce/apex/RIQ_DashboardController.getAtRiskAccounts', () => ({ default: jest.fn() }), {
   virtual: true
 });
+jest.mock('@salesforce/apex/RIQ_DashboardController.getRowCount', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/RIQ_DashboardController.getOwners', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/RIQ_AccountHealthController.recalculate', () => ({ default: jest.fn() }), {
   virtual: true
@@ -61,7 +63,8 @@ const ROWS = [
     score: 31,
     churnProbability: 72,
     arr: 480000,
-    daysToRenewal: 12
+    daysToRenewal: 12,
+    lastScored: '2026-11-15T09:30:00.000Z'
   }
 ];
 
@@ -76,10 +79,20 @@ function field(element, tag, name) {
   return Array.from(element.shadowRoot.querySelectorAll(tag)).find((node) => node.name === name);
 }
 
-function resolveAllWith({ rows = ROWS, kpis = KPIS, slices = SLICES } = {}) {
+function buttonByLabel(element, label) {
+  return Array.from(element.shadowRoot.querySelectorAll('lightning-button')).find((button) => button.label === label);
+}
+
+function kpiValue(element, key) {
+  const tile = element.shadowRoot.querySelector(`.riq-kpi[data-key="${key}"]`);
+  return tile ? tile.querySelector('.riq-kpi__value') : null;
+}
+
+function resolveAllWith({ rows = ROWS, kpis = KPIS, slices = SLICES, rowCount = 12 } = {}) {
   getKpis.mockResolvedValue(kpis);
   getStatusDistribution.mockResolvedValue(slices);
   getAtRiskAccounts.mockResolvedValue(rows);
+  getRowCount.mockResolvedValue(rowCount);
   getOwners.mockResolvedValue([{ ownerId: '005000000000001AAA', ownerName: 'Priya' }]);
 }
 
@@ -110,21 +123,68 @@ describe('c-riq-command-center', () => {
     expect(element.shadowRoot.querySelector('lightning-spinner')).not.toBeNull();
   });
 
-  it('renders KPI tiles and the at-risk rows', async () => {
+  it('renders five KPI tiles in rupees, with the full amount on hover', async () => {
     resolveAllWith();
     const element = await createDashboard();
 
     const tiles = element.shadowRoot.querySelectorAll('.riq-kpi');
-    expect(tiles).toHaveLength(4);
-    expect(element.shadowRoot.textContent).toContain('$4.2M');
-    expect(element.shadowRoot.textContent).toContain('$1.2M');
+    expect(tiles).toHaveLength(5);
 
-    const table = element.shadowRoot.querySelector('lightning-datatable');
-    expect(table).not.toBeNull();
-    expect(table.data).toHaveLength(1);
-    expect(table.data[0].churnDisplay).toBe('72%');
-    expect(table.data[0].arrDisplay).toBe('$480K');
-    expect(table.data[0].renewalDisplay).toBe('12d');
+    expect(kpiValue(element, 'arr').textContent).toBe('₹42 L');
+    expect(kpiValue(element, 'arr').getAttribute('title')).toBe('₹42,00,000 total annual recurring revenue in scope.');
+
+    expect(kpiValue(element, 'risk').textContent).toBe('₹12 L');
+    expect(kpiValue(element, 'risk').getAttribute('title')).toContain(
+      'Yearly revenue from customers rated At Risk or Critical'
+    );
+
+    expect(kpiValue(element, 'critical').textContent).toBe('3');
+    expect(kpiValue(element, 'score').textContent).toBe('64');
+    expect(kpiValue(element, 'renewals').textContent).toBe('5');
+  });
+
+  it('renders one table row with INR, a labelled status badge and IST last scored', async () => {
+    resolveAllWith();
+    const element = await createDashboard();
+
+    const bodyRows = element.shadowRoot.querySelectorAll('tbody tr');
+    expect(bodyRows).toHaveLength(1);
+
+    const text = bodyRows[0].textContent;
+    expect(text).toContain('Acme');
+    expect(text).toContain('31');
+    expect(text).toContain('Critical');
+    expect(text).toContain('72%');
+    expect(text).toContain('₹4.8 L');
+    expect(text).toContain('12 days');
+    expect(text).not.toContain('2026-11-15T');
+
+    const badge = bodyRows[0].querySelector('.riq-badge');
+    expect(badge.textContent).toContain('Critical');
+    expect(badge.getAttribute('style')).toContain('#ba0517');
+  });
+
+  it('shows the visible count and states that the lowest score comes first', async () => {
+    resolveAllWith();
+    const element = await createDashboard();
+
+    const header = element.shadowRoot.querySelector('.riq-panel__head').textContent;
+    expect(header).toContain('Showing 1 of 12');
+    expect(header).toContain('Lowest health score first');
+  });
+
+  it('asks the server for the lowest score first by default', async () => {
+    resolveAllWith();
+    await createDashboard();
+
+    const firstCall = getAtRiskAccounts.mock.calls[0][0];
+    expect(firstCall.sortBy).toBe('score');
+    expect(firstCall.sortDirection).toBe('asc');
+    expect(getRowCount).toHaveBeenCalledWith({
+      statusFilter: 'All',
+      ownerId: null,
+      renewalWindowDays: 90
+    });
   });
 
   it('subscribes to the platform event and unsubscribes on disconnect', async () => {
@@ -173,17 +233,27 @@ describe('c-riq-command-center', () => {
     expect(lastCall.ownerId).toBe('005000000000001AAA');
   });
 
-  it('translates a datatable sort into a server sort', async () => {
+  it('sorts through the table header buttons', async () => {
     resolveAllWith();
     const element = await createDashboard();
 
-    const table = element.shadowRoot.querySelector('lightning-datatable');
-    table.dispatchEvent(new CustomEvent('sort', { detail: { fieldName: 'churnDisplay', sortDirection: 'asc' } }));
+    element.shadowRoot.querySelector('button[data-key="churn"]').click();
     await flushPromises();
 
     const lastCall = getAtRiskAccounts.mock.calls[getAtRiskAccounts.mock.calls.length - 1][0];
     expect(lastCall.sortBy).toBe('churn');
     expect(lastCall.sortDirection).toBe('asc');
+  });
+
+  it('marks the sorted column for assistive technology', async () => {
+    resolveAllWith();
+    const element = await createDashboard();
+
+    const sorted = Array.from(element.shadowRoot.querySelectorAll('th')).find(
+      (header) => header.getAttribute('aria-sort') === 'ascending'
+    );
+
+    expect(sorted.textContent).toContain('Health score');
   });
 
   it('recalculates a row and reloads the dashboard', async () => {
@@ -193,15 +263,7 @@ describe('c-riq-command-center', () => {
     const toastHandler = jest.fn();
     element.addEventListener('lightning__showtoast', toastHandler);
 
-    const table = element.shadowRoot.querySelector('lightning-datatable');
-    table.dispatchEvent(
-      new CustomEvent('rowaction', {
-        detail: {
-          action: { name: 'recalculate' },
-          row: { accountId: '001000000000001AAA', name: 'Acme' }
-        }
-      })
-    );
+    element.shadowRoot.querySelector('button[data-id="001000000000001AAA"]').click();
     await flushPromises();
     await flushPromises();
 
@@ -217,12 +279,7 @@ describe('c-riq-command-center', () => {
     const toastHandler = jest.fn();
     element.addEventListener('lightning__showtoast', toastHandler);
 
-    const table = element.shadowRoot.querySelector('lightning-datatable');
-    table.dispatchEvent(
-      new CustomEvent('rowaction', {
-        detail: { action: { name: 'recalculate' }, row: { accountId: '001000000000001AAA' } }
-      })
-    );
+    element.shadowRoot.querySelector('button[data-id="001000000000001AAA"]').click();
     await flushPromises();
     await flushPromises();
 
@@ -231,12 +288,19 @@ describe('c-riq-command-center', () => {
     expect(toast.detail.message).toBe('You do not have permission to recalculate.');
   });
 
-  it('renders an empty state when nothing matches the filters', async () => {
-    resolveAllWith({ rows: [] });
+  it('renders a friendly empty state and clears the filters', async () => {
+    resolveAllWith({ rows: [], rowCount: 0 });
     const element = await createDashboard();
 
-    expect(element.shadowRoot.querySelector('.riq-empty')).not.toBeNull();
-    expect(element.shadowRoot.querySelector('lightning-datatable')).toBeNull();
+    expect(element.shadowRoot.querySelector('.riq-empty').textContent).toContain('No customers match these filters');
+    expect(element.shadowRoot.querySelector('tbody')).toBeNull();
+
+    buttonByLabel(element, 'Clear filters').click();
+    await flushPromises();
+
+    const lastCall = getAtRiskAccounts.mock.calls[getAtRiskAccounts.mock.calls.length - 1][0];
+    expect(lastCall.statusFilter).toBe('All');
+    expect(lastCall.ownerId).toBeNull();
   });
 
   it('shows the server message when loading fails, and retries', async () => {
@@ -244,14 +308,16 @@ describe('c-riq-command-center', () => {
     getKpis.mockRejectedValueOnce({ body: { message: 'Something broke on the server.' } });
     const element = await createDashboard();
 
-    expect(element.shadowRoot.querySelector('[role="alert"]').textContent).toContain('Something broke on the server.');
+    const alert = element.shadowRoot.querySelector('[role="alert"]');
+    expect(alert.textContent).toContain('We could not load the dashboard.');
+    expect(alert.textContent).toContain('Something broke on the server.');
 
-    element.shadowRoot.querySelector('lightning-button').click();
+    buttonByLabel(element, 'Try again').click();
     await flushPromises();
     await flushPromises();
 
     expect(element.shadowRoot.querySelector('[role="alert"]')).toBeNull();
-    expect(element.shadowRoot.querySelector('lightning-datatable')).not.toBeNull();
+    expect(element.shadowRoot.querySelector('tbody tr')).not.toBeNull();
   });
 
   it('falls back to the SVG donut when Chart.js cannot load', async () => {

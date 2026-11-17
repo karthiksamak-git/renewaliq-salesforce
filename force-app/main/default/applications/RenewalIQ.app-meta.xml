@@ -4,6 +4,14 @@
         <headerColor>#0B5CAB</headerColor>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <comment>RenewalIQ Account record page is the default for this app.</comment>
+        <content>RIQ_Account_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <type>Flexipage</type>
+    </actionOverrides>
     <defaultLandingTab>RIQ_Command_Center</defaultLandingTab>
     <description
   >Customer Health and Renewal Command Center: scores, churn risk and renewal work in one place.</description>

@@ -1,11 +1,12 @@
 /*******************************************************************************************
- * RenewalIQ - Phase 4 demo scenario.
+ * RenewalIQ - live demo scenario.
  *
- * Builds a three-account story that exercises every part of the Lightning layer:
+ * Picks three accounts from the Indian demo book and pushes them in opposite directions
+ * so a live demo shows real status changes:
  *
  *   - a healthy account with a distant renewal,
- *   - an at-risk account whose renewal is inside the 90 day window,
- *   - a critical account whose renewal is days away,
+ *   - an account inside the 90 day renewal window that drops into At Risk,
+ *   - an account days from renewal that drops into Critical,
  *
  * then re-scores them through the same entry point the Queueable and the nightly batch
  * use (RIQ_HealthScoreRecalculator.process), so the Command Center, the record page card
@@ -15,20 +16,18 @@
  *   sf apex run --file scripts/apex/demo-scenario.apex --target-org <alias>
  *
  * Re-runnable: accounts are matched by name and updated in place, and each run adds one
- * more round of signals (which is realistic - signals accumulate). To start over:
- *   delete the accounts named "Phase 4 Demo - ..." and their signals cascade.
+ * more round of signals (which is realistic - signals accumulate). Everything created
+ * here carries the "RenewalIQ demo data" description, so reset-demo-data.apex removes it.
  *******************************************************************************************/
 
-String ACCOUNT_PREFIX = 'Phase 4 Demo - ';
-
 List<String> demoNames = new List<String>{
-    ACCOUNT_PREFIX + 'Northwind Trading',
-    ACCOUNT_PREFIX + 'Globex Manufacturing',
-    ACCOUNT_PREFIX + 'Initech Systems'
+    'RupeeRoute Payments',
+    'CargoChetak Logistics',
+    'ArogyaGrid Health'
 };
 
-// ARR and how many days from today the contract ends.
-List<Decimal> demoArr = new List<Decimal>{ 480000, 1250000, 92000 };
+// ARR in rupees and how many days from today the contract ends.
+List<Decimal> demoArr = new List<Decimal>{ 4800000, 12500000, 9200000 };
 List<Integer> daysToRenewal = new List<Integer>{ 64, 22, 5 };
 
 // Signals per account, written as "Type|Severity|DaysAgo".
@@ -53,11 +52,7 @@ Map<Integer, List<String>> signalsByAccount = new Map<Integer, List<String>>{
 // 1. Create or update the three accounts.
 // ---------------------------------------------------------------------------------------
 Map<String, Account> existingByName = new Map<String, Account>();
-for (Account existing : [
-    SELECT Id, Name
-    FROM Account
-    WHERE Name LIKE :(ACCOUNT_PREFIX + '%')
-]) {
+for (Account existing : [SELECT Id, Name FROM Account WHERE Name IN :demoNames]) {
     existingByName.put(existing.Name, existing);
 }
 
@@ -68,7 +63,11 @@ for (Integer i = 0; i < demoNames.size(); i++) {
     Account account = existingByName.get(demoNames[i]);
 
     if (account == null) {
-        account = new Account(Name = demoNames[i]);
+        account = new Account(
+            Name = demoNames[i],
+            BillingCountry = 'India',
+            Description = 'RenewalIQ demo data - created by the demo scenario script.'
+        );
         toInsert.add(account);
     }
 
@@ -99,7 +98,7 @@ for (Integer i = 0; i < accounts.size(); i++) {
                 Signal_Type__c = parts[0],
                 Severity__c = Integer.valueOf(parts[1]),
                 Occurred_On__c = Date.today().addDays(-Integer.valueOf(parts[2])),
-                Notes__c = 'Phase 4 demo signal.'
+                Notes__c = 'Signal logged during the RenewalIQ demo walkthrough.'
             )
         );
     }
@@ -121,7 +120,7 @@ RIQ_HealthScoreRecalculator.ProcessResult result = RIQ_HealthScoreRecalculator.p
 // ---------------------------------------------------------------------------------------
 String orgUrl = URL.getOrgDomainUrl().toExternalForm();
 
-System.debug(LoggingLevel.ERROR, '=== RenewalIQ Phase 4 demo ===');
+System.debug(LoggingLevel.ERROR, '=== RenewalIQ demo scenario ===');
 System.debug(
     LoggingLevel.ERROR,
     'Scored ' + result.processedCount +
@@ -144,7 +143,7 @@ for (Account account : [
         ' | score ' + account.RIQ_Health_Score__c +
         ' | ' + account.RIQ_Health_Status__c +
         ' | churn ' + account.RIQ_Churn_Probability__c + '%' +
-        ' | ARR ' + account.RIQ_ARR__c +
+        ' | ARR ' + RIQ_CurrencyFormatter.formatInrCompact(account.RIQ_ARR__c) +
         ' | renewal ' + account.RIQ_Contract_End_Date__c +
         ' | owner ' + account.Owner.Name
     );

@@ -114,6 +114,9 @@ public with sharing class RIQ_DashboardController {
         /** In-app link to the record. */
         @AuraEnabled
         public String recordUrl;
+        /** When the score was last written; null means never scored. */
+        @AuraEnabled
+        public DateTime lastScored;
     }
 
     /** One option of the owner filter. */
@@ -258,12 +261,35 @@ public with sharing class RIQ_DashboardController {
                     ? null
                     : Date.today().daysBetween(account.RIQ_Contract_End_Date__c);
                 row.recordUrl = '/' + account.Id;
+                row.lastScored = account.RIQ_Last_Scored__c;
                 rows.add(row);
             }
 
             return rows;
         } catch (Exception failure) {
             throw handleFailure(failure, 'read the at-risk accounts');
+        }
+    }
+
+    /**
+     * @description The number of accounts the current filters match, so the UI
+     * can say "Showing 40 of 57" instead of implying the row limit is the total.
+     * @param statusFilter Null or 'All' for At Risk + Critical.
+     * @param ownerId Optional owner filter.
+     * @param renewalWindowDays Optional renewal window; null means any date.
+     * @return Matching account count.
+     */
+    @AuraEnabled(cacheable=true)
+    public static Integer getRowCount(String statusFilter, Id ownerId, Integer renewalWindowDays) {
+        Set<String> statuses = resolveStatuses(statusFilter);
+        Date windowEnd = renewalWindowDays == null || renewalWindowDays <= 0
+            ? null
+            : Date.today().addDays(normaliseWindow(renewalWindowDays));
+
+        try {
+            return new RIQ_DashboardSelector().countRiskAccounts(statuses, ownerId, windowEnd);
+        } catch (Exception failure) {
+            throw handleFailure(failure, 'count the accounts needing attention');
         }
     }
 

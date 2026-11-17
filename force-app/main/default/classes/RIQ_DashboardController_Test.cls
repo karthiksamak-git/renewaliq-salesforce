@@ -214,6 +214,25 @@ private class RIQ_DashboardController_Test {
     }
 
     @IsTest
+    static void rowCountMatchesTheSameFiltersAsTheTable() {
+        List<Account> accounts = createBook();
+        User otherOwner = userByAlias('riqown');
+        update new List<Account>{ new Account(Id = accounts[0].Id, OwnerId = otherOwner.Id) };
+
+        Test.startTest();
+        Integer allRisk = RIQ_DashboardController.getRowCount(null, null, null);
+        Integer watchOnly = RIQ_DashboardController.getRowCount('Watch', null, null);
+        Integer ownedByOther = RIQ_DashboardController.getRowCount('All', otherOwner.Id, null);
+        Integer nextThirtyDays = RIQ_DashboardController.getRowCount('All', null, 30);
+        Test.stopTest();
+
+        System.assertEquals(100, allRisk, 'At Risk + Critical, any renewal date.');
+        System.assertEquals(50, watchOnly, 'Watch only.');
+        System.assertEquals(1, ownedByOther, 'Owner filter narrows the count.');
+        System.assert(nextThirtyDays > 0 && nextThirtyDays <= 100, 'Window filter narrows the count.');
+    }
+
+    @IsTest
     static void atRiskTableSortsAndClampsRows() {
         List<Account> accounts = createBook();
 

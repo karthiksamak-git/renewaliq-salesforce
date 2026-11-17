@@ -2,12 +2,16 @@ import {
   buildDonutSegments,
   buildSparklinePoints,
   daysLabel,
-  formatCompactCurrency,
-  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatInr,
+  formatInrCompact,
   formatPercent,
   gaugeDashArray,
   scoreLabel,
+  statusBadgeStyle,
   statusColor,
+  statusIcon,
   statusTheme
 } from 'c/riqUtils';
 
@@ -22,44 +26,94 @@ describe('riqUtils status mapping', () => {
   it('falls back to a neutral theme and colour for unknown status', () => {
     expect(statusTheme(undefined)).toBe('inverse');
     expect(statusColor('Nonsense')).toBe('#747474');
+    expect(statusIcon('Nonsense')).toBe('utility:help');
   });
 
-  it('maps statuses to their chart colours', () => {
+  it('maps statuses to their chart colours and icons', () => {
     expect(statusColor('Critical')).toBe('#ba0517');
     expect(statusColor('Healthy')).toBe('#2e844a');
+    expect(statusIcon('Critical')).toBe('utility:warning');
+    expect(statusIcon('Healthy')).toBe('utility:success');
+  });
+
+  it('tints the status badge with the same colour as the donut slice', () => {
+    const style = statusBadgeStyle('At Risk');
+
+    expect(style).toContain('#fe9339');
+    expect(style).toContain('border-color');
   });
 });
 
-describe('riqUtils formatting', () => {
-  it('formats whole-dollar currency', () => {
-    expect(formatCurrency(1250000)).toBe('$1,250,000');
-    expect(formatCurrency(0)).toBe('$0');
+describe('riqUtils Indian currency formatting', () => {
+  it('formats full amounts with Indian digit grouping and the rupee sign', () => {
+    expect(formatInr(1250000)).toBe('₹12,50,000');
+    expect(formatInr(100000)).toBe('₹1,00,000');
+    expect(formatInr(0)).toBe('₹0');
   });
 
-  it('returns an em dash for unknown currency and percentages', () => {
-    expect(formatCurrency(null)).toBe('—');
-    expect(formatCurrency(undefined)).toBe('—');
+  it('returns an em dash for unknown amounts and percentages', () => {
+    expect(formatInr(null)).toBe('—');
+    expect(formatInr(undefined)).toBe('—');
+    expect(formatInr('')).toBe('—');
+    expect(formatInr('not a number')).toBe('—');
     expect(formatPercent(null)).toBe('—');
     expect(formatPercent('not a number')).toBe('—');
   });
 
-  it('compacts large amounts for KPI tiles', () => {
-    expect(formatCompactCurrency(2500000000)).toBe('$2.5B');
-    expect(formatCompactCurrency(1200000)).toBe('$1.2M');
-    expect(formatCompactCurrency(45000)).toBe('$45K');
-    expect(formatCompactCurrency(120)).toBe('$120');
-    expect(formatCompactCurrency(null)).toBe('—');
+  it('keeps small amounts in full below one lakh', () => {
+    expect(formatInrCompact(120)).toBe('₹120');
+    expect(formatInrCompact(45000)).toBe('₹45,000');
+    expect(formatInrCompact(99999)).toBe('₹99,999');
+    expect(formatInrCompact(0)).toBe('₹0');
+  });
+
+  it('switches to lakh at exactly one lakh', () => {
+    expect(formatInrCompact(100000)).toBe('₹1 L');
+    expect(formatInrCompact(150000)).toBe('₹1.5 L');
+    expect(formatInrCompact(1250000)).toBe('₹12.5 L');
+  });
+
+  it('switches to crore at exactly one crore', () => {
+    expect(formatInrCompact(9999999)).toBe('₹99.9 L');
+    expect(formatInrCompact(10000000)).toBe('₹1 Cr');
+    expect(formatInrCompact(42500000)).toBe('₹4.25 Cr');
+  });
+
+  it('handles negatives without losing the sign', () => {
+    expect(formatInr(-150000)).toBe('-₹1,50,000');
+    expect(formatInrCompact(-150000)).toBe('-₹1.5 L');
+    expect(formatInrCompact(-25000000)).toBe('-₹2.5 Cr');
+    expect(formatInrCompact(null)).toBe('—');
   });
 
   it('rounds percentages', () => {
     expect(formatPercent(62.4)).toBe('62%');
     expect(formatPercent(0)).toBe('0%');
   });
+});
 
-  it('labels days to renewal, including overdue', () => {
-    expect(daysLabel(12)).toBe('12d');
+describe('riqUtils dates', () => {
+  it('renders a date-only value without shifting the day', () => {
+    expect(formatDate('2026-12-31')).toBe('31 Dec 2026');
+    expect(formatDate(null)).toBe('—');
+    expect(formatDate('not a date')).toBe('—');
+  });
+
+  it('renders timestamps in IST with no raw ISO string left over', () => {
+    const display = formatDateTime('2026-11-15T09:30:00.000Z');
+
+    expect(display).toContain('2026');
+    expect(display).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(display).toContain('IST');
+    expect(formatDateTime(null)).toBe('—');
+  });
+
+  it('labels days to renewal in plain language, including overdue', () => {
+    expect(daysLabel(12)).toBe('12 days');
+    expect(daysLabel(1)).toBe('1 day');
     expect(daysLabel(0)).toBe('Today');
-    expect(daysLabel(-5)).toBe('5d overdue');
+    expect(daysLabel(-5)).toBe('5 days overdue');
+    expect(daysLabel(-1)).toBe('1 day overdue');
     expect(daysLabel(null)).toBe('—');
   });
 
@@ -107,6 +161,7 @@ describe('riqUtils donut geometry', () => {
     const [segment] = buildDonutSegments([{ label: 'Critical', count: 4 }]);
 
     expect(segment.swatchStyle).toBe('background-color: #ba0517');
+    expect(segment.icon).toBe('utility:warning');
   });
 });
 

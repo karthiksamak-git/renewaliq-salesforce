@@ -99,7 +99,7 @@ describe('c-riq-health-score-card', () => {
     expect(getHealthCard.getLastConfig()).toEqual({ accountId: ACCOUNT_ID });
   });
 
-  it('renders the score, status, churn and gauge geometry', async () => {
+  it('renders the score, status, churn, INR ARR and readable renewal date', async () => {
     const element = await createCard();
     getHealthCard.emit(CARD);
     await flushPromises();
@@ -108,12 +108,29 @@ describe('c-riq-health-score-card', () => {
     expect(text).toContain('42');
     expect(text).toContain('At Risk');
     expect(text).toContain('61%');
-    expect(text).toContain('$480K');
-    expect(text).toContain('2026-12-31');
+    expect(text).toContain('₹4.8 L');
+    expect(text).toContain('31 Dec 2026');
+    expect(text).not.toContain('2026-12-31');
 
     const gauge = element.shadowRoot.querySelector('circle.riq-gauge__value');
     expect(gauge.getAttribute('stroke-dasharray')).not.toBeNull();
     expect(gauge.getAttribute('stroke')).toBe('#fe9339');
+  });
+
+  it('shows the full rupee amount on hover and a labelled status badge', async () => {
+    const element = await createCard();
+    getHealthCard.emit(CARD);
+    await flushPromises();
+
+    const arrRow = Array.from(element.shadowRoot.querySelectorAll('.riq-facts__row')).find((row) =>
+      row.textContent.includes('ARR (INR)')
+    );
+
+    expect(arrRow.querySelector('dd').getAttribute('title')).toBe('₹4,80,000');
+
+    const badge = element.shadowRoot.querySelector('.riq-status');
+    expect(badge.textContent).toContain('At Risk');
+    expect(badge.getAttribute('style')).toContain('#fe9339');
   });
 
   it('renders the top drivers with their points', async () => {

@@ -178,8 +178,9 @@ The project targets Groq, and the provider is configuration, not code:
    nothing branches on it.
 3. **External Credential `RIQ_LLM_API` → `RIQ LLM Principal`**: only if the new
    provider wants a different scheme. A `Bearer` token provider needs nothing;
-   a header-based provider (an `x-api-key` style API) is a header rename and a
-   value of `{!$Credential.RIQ_LLM_API.apiKey}`.
+   a provider that authenticates with its own header is a rename of the header
+   name plus its value (still `{!$Credential.RIQ_LLM_API.apiKey}`, never a literal
+   key) in the External Credential, not a code change.
 4. The body is already plain OpenAI chat completions (`model`, `messages`,
    `temperature`, `max_tokens`, `response_format`), and the parser already reads
    `choices[0].message.content`, so no Apex changes and no deployment.

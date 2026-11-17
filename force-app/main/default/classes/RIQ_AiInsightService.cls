@@ -214,7 +214,7 @@ public with sharing class RIQ_AiInsightService {
         );
 
         if (account.RIQ_ARR__c != null) {
-            lines.add('ARR (USD): ' + account.RIQ_ARR__c.intValue());
+            lines.add('ARR (INR): ' + account.RIQ_ARR__c.intValue());
         }
 
         if (account.RIQ_Contract_End_Date__c != null) {
@@ -249,6 +249,10 @@ public with sharing class RIQ_AiInsightService {
         }
 
         lines.add('');
+        lines.add(
+            'The reader is in India. All amounts are in Indian Rupees (INR). Write large amounts in ' +
+            'lakh and crore style, for example 12.5 L or 4.25 Cr, and never use a dollar sign.'
+        );
         lines.add('Reply with JSON only, no prose and no code fences:');
         lines.add('{"summary": "<=600 characters", "nextBestAction": "<=200 characters", "riskReasons": ["<=3 short reasons"]}');
         lines.add('Never include names, email addresses, phone numbers or verbatim customer quotes.');
@@ -384,10 +388,10 @@ public with sharing class RIQ_AiInsightService {
     }
 
     /**
-     * @description Reads choices[0].message.content. The Anthropic content-block
-     * branch was removed with the provider switch: nothing in the project targets
-     * an Anthropic endpoint any more, and untested compatibility branches are
-     * dead code that rots quietly.
+     * @description Reads choices[0].message.content, the only response shape an
+     * OpenAI-compatible chat completions endpoint returns and the only one this
+     * service targets. There is deliberately no second code path: an untested
+     * compatibility branch is dead code that rots quietly.
      * @param body Response body.
      * @return The text the model produced, or null.
      */
@@ -442,6 +446,9 @@ public with sharing class RIQ_AiInsightService {
             status + ' account' + (score == null ? '' : ' at ' + score + '/100') +
             ' with ' + signalCount + ' recorded signal' + (signalCount == 1 ? '' : 's') +
             ' in the scoring window. ' +
+            (account.RIQ_ARR__c == null
+                ? ''
+                : 'Annual recurring revenue is ' + RIQ_CurrencyFormatter.formatInrCompact(account.RIQ_ARR__c) + '. ') +
             (account.RIQ_Contract_End_Date__c == null
                 ? 'No contract end date is on file.'
                 : 'The contract ends on ' + String.valueOf(account.RIQ_Contract_End_Date__c) + '.');

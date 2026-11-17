@@ -7,8 +7,15 @@
 
 .riq-logger__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.25rem;
+}
+
+.riq-logger__actions lightning-button:focus-within {
+  outline: 2px solid #0176d3;
+  outline-offset: 2px;
+  border-radius: 0.25rem;
 }
 
 .riq-logger__status {

@@ -89,7 +89,7 @@ public with sharing class RIQ_DashboardSelector extends RIQ_Selector {
     ) {
         String soql =
             'SELECT Id, Name, OwnerId, Owner.Name, RIQ_Health_Score__c, RIQ_Health_Status__c,' +
-            ' RIQ_Churn_Probability__c, RIQ_ARR__c, RIQ_Contract_End_Date__c' +
+            ' RIQ_Churn_Probability__c, RIQ_ARR__c, RIQ_Contract_End_Date__c, RIQ_Last_Scored__c' +
             ' FROM Account' +
             ' WHERE RIQ_Health_Status__c IN :statuses';
         Map<String, Object> binds = new Map<String, Object>{ 'statuses' => statuses };
@@ -109,6 +109,32 @@ public with sharing class RIQ_DashboardSelector extends RIQ_Selector {
         binds.put('rowLimit', rowLimit);
 
         return (List<Account>) query(soql, binds);
+    }
+
+    /**
+     * @description How many accounts the same filters return, without fetching
+     * them. Used for the "Showing X of Y" line under the table.
+     * @param statuses Statuses to include; never empty.
+     * @param ownerId Optional owner filter.
+     * @param windowEnd Optional last day of the renewal window.
+     * @return Matching account count.
+     */
+    public Integer countRiskAccounts(Set<String> statuses, Id ownerId, Date windowEnd) {
+        String soql = 'SELECT COUNT(Id) total FROM Account WHERE RIQ_Health_Status__c IN :statuses';
+        Map<String, Object> binds = new Map<String, Object>{ 'statuses' => statuses };
+
+        if (ownerId != null) {
+            soql += ' AND OwnerId = :ownerId';
+            binds.put('ownerId', ownerId);
+        }
+
+        if (windowEnd != null) {
+            soql += ' AND RIQ_Contract_End_Date__c >= TODAY AND RIQ_Contract_End_Date__c <= :windowEnd';
+            binds.put('windowEnd', windowEnd);
+        }
+
+        List<AggregateResult> results = toAggregates(query(soql, binds));
+        return results.isEmpty() ? 0 : (Integer) results[0].get('total');
     }
 
     /**

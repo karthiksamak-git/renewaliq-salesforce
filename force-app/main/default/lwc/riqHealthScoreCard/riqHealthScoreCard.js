@@ -9,10 +9,16 @@ import generateInsight from '@salesforce/apex/RIQ_AccountHealthController.genera
 import {
   buildSparklinePoints,
   daysLabel,
-  formatCompactCurrency,
+  formatDate,
+  formatDateTime,
+  formatInr,
+  formatInrCompact,
   formatPercent,
   gaugeDashArray,
   scoreLabel,
+  statusBadgeStyle,
+  statusColor,
+  statusIcon,
   statusTheme
 } from 'c/riqUtils';
 
@@ -112,8 +118,8 @@ export default class RiqHealthScoreCard extends LightningElement {
           title: 'Insight generated',
           message:
             this.card.aiSource === 'AI'
-              ? 'Written by the model.'
-              : 'Written by rules: the model is off or unavailable.',
+              ? 'Written by the AI model.'
+              : 'Written by the built-in rules: the AI model is switched off or unavailable.',
           variant: 'success'
         })
       );
@@ -179,21 +185,7 @@ export default class RiqHealthScoreCard extends LightningElement {
   }
 
   get gaugeColor() {
-    const status = this.card ? this.card.status : null;
-
-    if (status === 'Critical') {
-      return '#ba0517';
-    }
-
-    if (status === 'At Risk') {
-      return '#fe9339';
-    }
-
-    if (status === 'Watch') {
-      return '#0176d3';
-    }
-
-    return '#2e844a';
+    return this.card ? statusColor(this.card.status) : statusColor('Healthy');
   }
 
   get statusVariant() {
@@ -205,25 +197,24 @@ export default class RiqHealthScoreCard extends LightningElement {
   }
 
   get statusIcon() {
-    const status = this.card ? this.card.status : null;
+    return statusIcon(this.card ? this.card.status : null);
+  }
 
-    if (status === 'Critical' || status === 'At Risk') {
-      return 'utility:warning';
-    }
-
-    if (status === 'Watch') {
-      return 'utility:info';
-    }
-
-    return 'utility:success';
+  get statusStyle() {
+    return statusBadgeStyle(this.card ? this.card.status : null);
   }
 
   get churnDisplay() {
     return this.card ? formatPercent(this.card.churnProbability) : '—';
   }
 
+  /** Compact on the card, with the exact rupee amount one hover away. */
   get arrDisplay() {
-    return this.card ? formatCompactCurrency(this.card.arr) : '—';
+    return this.card ? formatInrCompact(this.card.arr) : '—';
+  }
+
+  get arrFull() {
+    return this.card ? formatInr(this.card.arr) : '—';
   }
 
   get renewalDisplay() {
@@ -231,7 +222,7 @@ export default class RiqHealthScoreCard extends LightningElement {
       return '—';
     }
 
-    return this.card.contractEndDate;
+    return formatDate(this.card.contractEndDate);
   }
 
   get lastScoredDisplay() {
@@ -239,13 +230,7 @@ export default class RiqHealthScoreCard extends LightningElement {
       return 'Never scored';
     }
 
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    }).format(new Date(this.card.lastScored));
+    return formatDateTime(this.card.lastScored);
   }
 
   get drivers() {
@@ -304,7 +289,7 @@ export default class RiqHealthScoreCard extends LightningElement {
     }
 
     const today = new Date();
-    const end = new Date(this.card.contractEndDate);
+    const end = new Date(`${this.card.contractEndDate}T00:00:00Z`);
     const days = Math.round((end - today) / (1000 * 60 * 60 * 24));
 
     return daysLabel(days);
@@ -361,13 +346,7 @@ export default class RiqHealthScoreCard extends LightningElement {
       return null;
     }
 
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    }).format(new Date(this.card.aiGeneratedOn));
+    return formatDateTime(this.card.aiGeneratedOn);
   }
 
   reduceError(error) {

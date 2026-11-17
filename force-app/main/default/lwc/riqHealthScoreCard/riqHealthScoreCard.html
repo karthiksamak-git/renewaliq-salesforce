@@ -63,12 +63,12 @@
               <text x="64" y="82" text-anchor="middle" class="riq-gauge__caption">/ 100</text>
             </svg>
 
-            <div class="riq-status">
+            <div class="riq-status" style={statusStyle}>
               <lightning-icon
                 icon-name={statusIcon}
                 size="x-small"
                 variant={statusVariant}
-                alternative-text={statusLabel}
+                alternative-text=""
               ></lightning-icon>
               <span class="riq-status__label">{statusLabel}</span>
             </div>
@@ -82,8 +82,8 @@
                 <dd>{churnDisplay}</dd>
               </div>
               <div class="riq-facts__row">
-                <dt>ARR</dt>
-                <dd>{arrDisplay}</dd>
+                <dt>ARR (INR)</dt>
+                <dd title={arrFull}>{arrDisplay}</dd>
               </div>
               <div class="riq-facts__row">
                 <dt>Contract ends</dt>
@@ -145,7 +145,7 @@
         </div>
 
         <!-- AI insight -->
-        <div class="riq-insight">
+        <div class="riq-insight" aria-live="polite">
           <div class="riq-insight__header">
             <p class="slds-text-title_caps slds-text-color_weak">Insight</p>
             <span class={insightBadgeClass}>{insightSourceLabel}</span>

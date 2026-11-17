@@ -263,6 +263,36 @@ Details, including the exact setup steps for the credential, the provider switch
 the curl/authentication walkthrough, are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
 and [docs/API.md](docs/API.md).
 
+## India-ready
+
+The org runs on INR, locale `en_IN` and `Asia/Kolkata`, so every number and timestamp is
+rendered the way an Indian customer success team reads it. That is a formatting
+concern, not a storage one: money stays a Salesforce Currency field (INR), and the
+display rules live in two small, tested places.
+
+| Layer | Helper | Rule |
+| ----- | ------ | ---- |
+| LWC | `riqUtils.formatInr(value)` | `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })` — `₹12,50,000` |
+| LWC | `riqUtils.formatInrCompact(value)` | below ₹1 L the full amount, ₹1 L to under ₹1 Cr as `12.5 L`, ₹1 Cr and above as `4.25 Cr` |
+| Apex | `RIQ_CurrencyFormatter.formatInr / formatInrCompact` | the same rules, hand-written because **Apex has no `Intl`** |
+
+The compaction truncates instead of rounding up, so ₹99,99,999 shows as `₹99.9 L` and
+never as a crore that does not exist. KPI tiles show the compact form with the exact
+rupee amount on hover, the table's ARR column is headed **ARR (INR)**, and the
+rule-based insight and the model prompt both speak in lakh and crore (the prompt
+explicitly forbids `$`, and a test asserts it).
+
+Timestamps go through `riqUtils.formatDateTime`, which formats with an explicit
+`timeZone: 'Asia/Kolkata'` and a zone name — so a reviewer in another country still
+sees IST, and no raw ISO string (or US month/day order) reaches the page.
+
+All 50 accounts in this org are **synthetic demo data for a portfolio project**:
+invented Indian companies across fintech, edtech, logistics, manufacturing,
+healthcare, retail, IT services and D2C, in eight cities, with ARR from ₹5 L to
+₹4.8 Cr. The seed script never writes a score — it logs signals and calls the same
+engine the nightly batch uses, so the Health / Watch / At Risk / Critical split is
+produced by the model, not asserted by the fixture.
+
 ## Flow vs Apex vs Platform Events vs Batch: when to use what
 
 | Tool | Use it when | Not for | In RenewalIQ |

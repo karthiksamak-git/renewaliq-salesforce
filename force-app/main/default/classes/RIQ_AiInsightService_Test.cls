@@ -63,6 +63,33 @@ private class RIQ_AiInsightService_Test {
     }
 
     @IsTest
+    static void promptIsInRupeesAndNeverDollars() {
+        Account testAccount = account('Currency Prompt');
+
+        Test.startTest();
+        String prompt = RIQ_AiInsightService.buildPrompt(testAccount, null, null);
+        Test.stopTest();
+
+        System.assert(prompt.contains('ARR (INR)'), 'The amount must be labelled as INR.');
+        System.assert(prompt.contains('Indian Rupees'), 'The model is told the currency.');
+        System.assert(prompt.contains('lakh') && prompt.contains('crore'), 'Lakh/crore style is requested.');
+        System.assert(!prompt.contains('USD'), 'No USD anywhere in the prompt.');
+        System.assert(!prompt.contains('$'), 'No dollar sign anywhere in the prompt.');
+    }
+
+    @IsTest
+    static void ruleBasedSummaryIsInRupees() {
+        Account testAccount = account('Currency Rule');
+
+        Test.startTest();
+        RIQ_AiInsightService.Insight insight = RIQ_AiInsightService.buildRuleBased(testAccount, null, null);
+        Test.stopTest();
+
+        System.assert(insight.summary.contains('₹4.8 L'), 'ARR must read in lakh: ' + insight.summary);
+        System.assert(!insight.summary.contains('$'), 'The fallback must not use a dollar sign.');
+    }
+
+    @IsTest
     static void promptCapsTheNumberOfSignals() {
         List<RIQ_Health_Signal__c> signals = new List<RIQ_Health_Signal__c>();
 

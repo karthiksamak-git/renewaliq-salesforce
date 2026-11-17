@@ -3,6 +3,12 @@
 Screenshots for the portfolio write-up. Nothing here is captured automatically: each
 item says what has to be on screen, and any manual setup it needs.
 
+> **All data in these screenshots is synthetic demo data for a portfolio project.**
+> The 50 accounts are invented Indian companies; no real customer, person or contract
+> appears anywhere in this org. Every figure on screen comes from a SOQL query against
+> those seeded records, and every AI insight is either produced by the live model or
+> labelled **Rule based**.
+
 Run the seed and demo scripts first:
 
 ```bash

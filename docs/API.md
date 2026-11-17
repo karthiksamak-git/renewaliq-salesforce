@@ -75,14 +75,14 @@ curl -s -X POST "https://your-domain.my.salesforce.com/services/apexrest/riq/v1/
   -d '[
     {
       "externalId": "zendesk-ticket-88421",
-      "accountExternalId": "ACME-001",
+      "accountExternalId": "NIVESH-001",
       "signalType": "Support Escalation",
       "severity": 4,
       "occurredOn": "2026-11-10",
       "notes": "P1 open for 3 days"
     },
     {
-      "externalId": "usage-2026-11-10-ACME-001",
+      "externalId": "usage-2026-11-10-NIVESH-001",
       "accountId": "001XXXXXXXXXXXXXXX",
       "signalType": "Low Product Usage",
       "severity": 3,
@@ -111,7 +111,7 @@ curl -s -X POST "https://your-domain.my.salesforce.com/services/apexrest/riq/v1/
     },
     {
       "index": 1,
-      "externalId": "usage-2026-11-10-ACME-001",
+      "externalId": "usage-2026-11-10-NIVESH-001",
       "status": "error",
       "message": "Account 001XXXXXXXXXXXXXXX does not exist or is not visible to you.",
       "signalId": null

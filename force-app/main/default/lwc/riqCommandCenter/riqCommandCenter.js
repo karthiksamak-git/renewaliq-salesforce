@@ -6,33 +6,44 @@ import CHARTJS from '@salesforce/resourceUrl/chartjs';
 import getKpis from '@salesforce/apex/RIQ_DashboardController.getKpis';
 import getStatusDistribution from '@salesforce/apex/RIQ_DashboardController.getStatusDistribution';
 import getAtRiskAccounts from '@salesforce/apex/RIQ_DashboardController.getAtRiskAccounts';
+import getRowCount from '@salesforce/apex/RIQ_DashboardController.getRowCount';
 import getOwners from '@salesforce/apex/RIQ_DashboardController.getOwners';
 import recalculate from '@salesforce/apex/RIQ_AccountHealthController.recalculate';
-import { buildDonutSegments, formatCompactCurrency, formatPercent, statusColor, daysLabel } from 'c/riqUtils';
+import {
+  buildDonutSegments,
+  daysLabel,
+  formatDateTime,
+  formatInr,
+  formatInrCompact,
+  formatPercent,
+  statusBadgeStyle,
+  statusColor,
+  statusIcon
+} from 'c/riqUtils';
 
 /** Platform event channel published by the scoring engine. */
 const EVENT_CHANNEL = '/event/RIQ_Health_Status_Change__e';
-/** Rows fetched for the drill-down table; the Apex layer clamps to 200. */
+/** Rows fetched for the table; the Apex layer clamps to 200. */
 const MAX_ROWS = 100;
-/** Datatable column to server sort key. */
+/** Column key to server sort key. */
 const SORT_KEY_BY_COLUMN = {
-  recordUrl: 'name',
-  ownerName: 'owner',
-  status: 'status',
+  account: 'name',
+  owner: 'owner',
   score: 'score',
-  churnDisplay: 'churn',
-  arrDisplay: 'arr',
-  renewalDisplay: 'renewal'
+  status: 'status',
+  churn: 'churn',
+  arr: 'arr',
+  renewal: 'renewal'
 };
-/** Server sort key back to datatable column, so the arrow lands on the right header. */
-const COLUMN_BY_SORT_KEY = {
-  name: 'recordUrl',
-  owner: 'ownerName',
+/** Plain-language name of each sortable field, used in the sort summary. */
+const SORT_LABEL = {
+  name: 'account name',
+  owner: 'owner',
+  score: 'health score',
   status: 'status',
-  score: 'score',
-  churn: 'churnDisplay',
-  arr: 'arrDisplay',
-  renewal: 'renewalDisplay'
+  churn: 'churn risk',
+  arr: 'ARR',
+  renewal: 'renewal date'
 };
 
 export default class RiqCommandCenter extends LightningElement {
@@ -40,6 +51,7 @@ export default class RiqCommandCenter extends LightningElement {
   slices = [];
   segments = [];
   rows = [];
+  rowCount;
   owners = [];
   isLoading = true;
   errorMessage;
@@ -48,7 +60,7 @@ export default class RiqCommandCenter extends LightningElement {
   statusFilter = 'All';
   windowDays = '90';
   sortBy = 'score';
-  sortDirection = 'desc';
+  sortDirection = 'asc';
 
   chart;
   chartAvailable = false;
@@ -99,29 +111,43 @@ export default class RiqCommandCenter extends LightningElement {
     this.errorMessage = undefined;
 
     const scope = this.ownerId || null;
+    const windowDays = Number(this.windowDays);
 
     try {
-      const [kpis, slices, rows] = await Promise.all([
-        getKpis({ ownerId: scope, renewalWindowDays: Number(this.windowDays) }),
+      const [kpis, slices, rows, rowCount] = await Promise.all([
+        getKpis({ ownerId: scope, renewalWindowDays: windowDays }),
         getStatusDistribution({ ownerId: scope }),
         getAtRiskAccounts({
           statusFilter: this.statusFilter,
           ownerId: scope,
-          renewalWindowDays: Number(this.windowDays),
+          renewalWindowDays: windowDays,
           sortBy: this.sortBy,
           sortDirection: this.sortDirection,
           maxRows: MAX_ROWS
+        }),
+        getRowCount({
+          statusFilter: this.statusFilter,
+          ownerId: scope,
+          renewalWindowDays: windowDays
         })
       ]);
 
       this.kpis = kpis;
       this.slices = slices;
       this.segments = buildDonutSegments(slices, 54);
+      this.rowCount = rowCount;
       this.rows = (rows || []).map((row) => ({
         ...row,
+        scoreDisplay: row.score === null || row.score === undefined ? '—' : `${row.score}`,
         churnDisplay: formatPercent(row.churnProbability),
-        arrDisplay: formatCompactCurrency(row.arr),
-        renewalDisplay: daysLabel(row.daysToRenewal)
+        arrDisplay: formatInrCompact(row.arr),
+        arrFull: formatInr(row.arr),
+        renewalDisplay: daysLabel(row.daysToRenewal),
+        lastScoredDisplay: row.lastScored ? formatDateTime(row.lastScored) : 'Never scored',
+        statusLabel: row.status || 'Unscored',
+        statusIcon: statusIcon(row.status),
+        statusStyle: statusBadgeStyle(row.status),
+        recalculateLabel: `Recalculate the score for ${row.name}`
       }));
 
       if (this.chartAvailable) {
@@ -131,6 +157,7 @@ export default class RiqCommandCenter extends LightningElement {
       this.errorMessage = this.reduceError(error);
       this.rows = [];
       this.segments = [];
+      this.rowCount = 0;
     } finally {
       this.isLoading = false;
     }
@@ -251,28 +278,42 @@ export default class RiqCommandCenter extends LightningElement {
     this.loadAll();
   }
 
-  handleSort(event) {
-    const { fieldName, sortDirection } = event.detail;
+  handleSortClick(event) {
+    const column = event.currentTarget.dataset.key;
+    const sortKey = SORT_KEY_BY_COLUMN[column];
 
-    this.sortBy = SORT_KEY_BY_COLUMN[fieldName] || 'score';
-    this.sortDirection = sortDirection;
+    if (!sortKey) {
+      return;
+    }
+
+    this.sortDirection = this.sortBy === sortKey && this.sortDirection === 'asc' ? 'desc' : 'asc';
+    this.sortBy = sortKey;
     this.loadAll();
   }
 
-  async handleRowAction(event) {
-    const action = event.detail.action;
-    const row = event.detail.row;
+  handleClearFilters() {
+    this.ownerId = '';
+    this.statusFilter = 'All';
+    this.windowDays = '90';
+    this.sortBy = 'score';
+    this.sortDirection = 'asc';
+    this.loadAll();
+  }
 
-    if (!action || action.name !== 'recalculate') {
+  async handleRecalculate(event) {
+    const accountId = event.currentTarget.dataset.id;
+    const accountName = event.currentTarget.dataset.name;
+
+    if (!accountId) {
       return;
     }
 
     try {
-      const card = await recalculate({ accountId: row.accountId });
+      const card = await recalculate({ accountId });
 
       this.dispatchEvent(
         new ShowToastEvent({
-          title: `Recalculated ${card.accountName}`,
+          title: `Recalculated ${card.accountName || accountName}`,
           message: `Score ${card.score} · ${card.status}`,
           variant: 'success'
         })
@@ -298,31 +339,28 @@ export default class RiqCommandCenter extends LightningElement {
 
   get columns() {
     return [
-      {
-        label: 'Account',
-        fieldName: 'recordUrl',
-        type: 'url',
-        typeAttributes: { label: { fieldName: 'name' }, target: '_self' },
-        sortable: true,
-        initialWidth: 220
-      },
-      { label: 'Owner', fieldName: 'ownerName', type: 'text', sortable: true },
-      { label: 'Status', fieldName: 'status', type: 'text', sortable: true, initialWidth: 110 },
-      { label: 'Score', fieldName: 'score', type: 'number', sortable: true, initialWidth: 80 },
-      { label: 'Churn', fieldName: 'churnDisplay', type: 'text', sortable: true, initialWidth: 90 },
-      { label: 'ARR', fieldName: 'arrDisplay', type: 'text', sortable: true, initialWidth: 100 },
-      { label: 'Renewal', fieldName: 'renewalDisplay', type: 'text', sortable: true, initialWidth: 120 },
-      {
-        type: 'action',
-        typeAttributes: {
-          rowActions: [{ label: 'Recalculate', name: 'recalculate' }]
-        }
-      }
-    ];
-  }
-
-  get sortedByColumn() {
-    return COLUMN_BY_SORT_KEY[this.sortBy] || 'score';
+      { key: 'account', label: 'Account', sortKey: 'name', width: '16rem' },
+      { key: 'owner', label: 'Owner', sortKey: 'owner', width: '10rem' },
+      { key: 'score', label: 'Health score', sortKey: 'score', width: '8rem', numeric: true },
+      { key: 'status', label: 'Status', sortKey: 'status', width: '9rem' },
+      { key: 'churn', label: 'Churn risk', sortKey: 'churn', width: '7rem', numeric: true },
+      { key: 'arr', label: 'ARR (INR)', sortKey: 'arr', width: '9rem', numeric: true },
+      { key: 'renewal', label: 'Renewal', sortKey: 'renewal', width: '8rem' },
+      { key: 'lastScored', label: 'Last scored', width: '12rem' },
+      { key: 'actions', label: 'Actions', width: '5rem' }
+    ].map((column) => ({
+      ...column,
+      sortable: !!column.sortKey,
+      style: `width: ${column.width};`,
+      sortTitle: `Sort by ${column.label}`,
+      headerClass: column.numeric ? 'riq-th riq-th_num' : 'riq-th',
+      ariaSort:
+        column.sortKey && this.sortBy === column.sortKey
+          ? this.sortDirection === 'asc'
+            ? 'ascending'
+            : 'descending'
+          : 'none'
+    }));
   }
 
   get kpiTiles() {
@@ -334,31 +372,42 @@ export default class RiqCommandCenter extends LightningElement {
       {
         key: 'arr',
         label: 'Total ARR',
-        value: formatCompactCurrency(this.kpis.totalArr),
-        hint: `${this.kpis.accountCount} accounts in scope`,
-        boxClass: 'slds-box slds-theme_default riq-kpi'
+        value: formatInrCompact(this.kpis.totalArr),
+        title: `${formatInr(this.kpis.totalArr)} total annual recurring revenue in scope.`,
+        hint: `${this.kpis.accountCount} accounts in scope`
       },
       {
         key: 'risk',
         label: 'ARR at risk',
-        value: formatCompactCurrency(this.kpis.arrAtRisk),
-        hint: `${this.kpis.criticalCount} critical`,
-        boxClass: 'slds-box slds-theme_default riq-kpi riq-kpi_risk'
+        value: formatInrCompact(this.kpis.arrAtRisk),
+        title: `${formatInr(
+          this.kpis.arrAtRisk
+        )} — Yearly revenue from customers rated At Risk or Critical`,
+        hint: 'At Risk and Critical customers'
+      },
+      {
+        key: 'critical',
+        label: 'Critical accounts',
+        value: `${this.kpis.criticalCount}`,
+        title: `${this.kpis.criticalCount} customers are rated Critical.`,
+        hint: 'need executive attention'
       },
       {
         key: 'score',
         label: 'Average score',
         value:
-          this.kpis.averageScore === null || this.kpis.averageScore === undefined ? '—' : `${this.kpis.averageScore}`,
-        hint: 'out of 100',
-        boxClass: 'slds-box slds-theme_default riq-kpi'
+          this.kpis.averageScore === null || this.kpis.averageScore === undefined
+            ? '—'
+            : `${this.kpis.averageScore}`,
+        title: 'Average health score of the accounts in scope, out of 100.',
+        hint: 'out of 100'
       },
       {
         key: 'renewals',
         label: 'Renewals due',
         value: `${this.kpis.renewalsDue}`,
-        hint: `next ${this.kpis.renewalWindowDays} days`,
-        boxClass: 'slds-box slds-theme_default riq-kpi'
+        title: `${this.kpis.renewalsDue} contracts end in the next ${this.kpis.renewalWindowDays} days.`,
+        hint: `next ${this.kpis.renewalWindowDays} days`
       }
     ];
   }
@@ -404,6 +453,23 @@ export default class RiqCommandCenter extends LightningElement {
 
   get showTable() {
     return !this.isLoading && !this.errorMessage && this.rows.length > 0;
+  }
+
+  /** "Showing 7 of 17" — the count is the filter total, not the row limit. */
+  get visibleCountText() {
+    const shown = this.rows.length;
+    const total = this.rowCount === null || this.rowCount === undefined ? shown : this.rowCount;
+    return `Showing ${shown} of ${total}`;
+  }
+
+  get sortSummary() {
+    const label = SORT_LABEL[this.sortBy] || 'health score';
+
+    if (this.sortBy === 'name' || this.sortBy === 'owner') {
+      return this.sortDirection === 'asc' ? 'A to Z' : 'Z to A';
+    }
+
+    return this.sortDirection === 'asc' ? `Lowest ${label} first` : `Highest ${label} first`;
   }
 
   /* ------------------------------------------------------------- helpers */
