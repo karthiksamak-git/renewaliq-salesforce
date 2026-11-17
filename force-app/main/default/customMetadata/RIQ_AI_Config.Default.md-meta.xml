@@ -12,7 +12,15 @@
     </values>
     <values>
         <field>Model_Name__c</field>
-        <value xsi:type="xsd:string">claude-3-5-haiku-latest</value>
+        <value xsi:type="xsd:string">llama-3.3-70b-versatile</value>
+    </values>
+    <values>
+        <field>Provider__c</field>
+        <value xsi:type="xsd:string">Groq</value>
+    </values>
+    <values>
+        <field>Request_Path__c</field>
+        <value xsi:type="xsd:string">/openai/v1/chat/completions</value>
     </values>
     <values>
         <field>Timeout_Seconds__c</field>

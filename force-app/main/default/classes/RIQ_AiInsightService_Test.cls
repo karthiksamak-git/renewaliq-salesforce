@@ -12,7 +12,7 @@ private class RIQ_AiInsightService_Test {
     private static RIQ_AiInsightService.Config enabledConfig() {
         RIQ_AiInsightService.Config config = new RIQ_AiInsightService.Config();
         config.isEnabled = true;
-        config.modelName = 'claude-3-5-haiku-latest';
+        config.modelName = 'llama-3.3-70b-versatile';
         config.maxTokens = 400;
         config.timeoutSeconds = 30;
         return config;
@@ -107,9 +107,17 @@ private class RIQ_AiInsightService_Test {
         System.assertEquals('Book an executive call.', insight.nextBestAction);
         System.assertEquals(2, insight.riskReasons.size());
         System.assertEquals(1, recorder.callCount);
-        System.assert(recorder.lastEndpoint.startsWith('callout:RIQ_LLM_API'), 'The callout goes through the named credential.');
-        System.assertEquals('2023-06-01', recorder.lastAnthropicVersion, 'The API version header is sent.');
+        System.assertEquals(
+            'callout:RIQ_LLM_API/openai/v1/chat/completions',
+            recorder.lastEndpoint,
+            'The callout goes through the named credential to the Groq path.'
+        );
+        System.assertEquals('application/json', recorder.lastContentType);
         System.assert(!recorder.lastBody.contains('sk-'), 'No key material is in the body.');
+        System.assert(
+            !recorder.lastBody.containsIgnoreCase('bearer'),
+            'The Authorization header is applied by the External Credential, never by Apex.'
+        );
     }
 
     @IsTest
@@ -182,13 +190,20 @@ private class RIQ_AiInsightService_Test {
     static void malformedBodiesFallBackToRules() {
         RIQ_AiInsightService.configOverride = enabledConfig();
         List<String> bodies = new List<String>{
-            'not json at all',
             '',
-            '{"content":[]}',
-            '{"content":[{"type":"text","text":"{\\"summary\\":null}"}]}',
-            '{"content":[{"type":"text","text":"{\\"nextBestAction\\":\\"only an action\\"}"}]}',
-            '{"choices":[]}'
+            RIQ_CalloutMocks.EMPTY_CHOICES_BODY,
+            RIQ_CalloutMocks.PROSE_BODY,
+            '{"choices":[{"message":null}]}'
         };
+
+        for (String content : new List<String>{
+            'not json at all',
+            '{"summary":null}',
+            '{"nextBestAction":"only an action"}',
+            '   '
+        }) {
+            bodies.add('{"choices":[{"index":0,"message":{"role":"assistant","content":' + JSON.serialize(content) + '}}]}');
+        }
 
         Test.startTest();
 
@@ -206,16 +221,18 @@ private class RIQ_AiInsightService_Test {
     }
 
     @IsTest
-    static void fencedAndOpenAiResponsesAreParsed() {
+    static void fencedAndGroqResponsesAreParsed() {
         RIQ_AiInsightService.Insight fenced = RIQ_AiInsightService.parseResponse(RIQ_CalloutMocks.FENCED_BODY);
         System.assertEquals('Fenced summary.', fenced.summary);
         System.assertEquals('Fenced reason', fenced.riskReasons[0]);
 
-        RIQ_AiInsightService.Insight openAi = RIQ_AiInsightService.parseResponse(RIQ_CalloutMocks.OPENAI_BODY);
-        System.assertEquals('OpenAI style summary.', openAi.summary);
+        RIQ_AiInsightService.Insight groq = RIQ_AiInsightService.parseResponse(RIQ_CalloutMocks.GROQ_SUCCESS_BODY);
+        System.assertEquals('Usage is down and the sponsor left.', groq.summary);
+        System.assertEquals('Book an executive call.', groq.nextBestAction);
+        System.assertEquals(RIQ_AiInsightService.SOURCE_AI, groq.source);
 
         System.assertEquals(null, RIQ_AiInsightService.parseResponse(null));
-        System.assertEquals(null, RIQ_AiInsightService.parseResponse('{"content":[]}'));
+        System.assertEquals(null, RIQ_AiInsightService.parseResponse(RIQ_CalloutMocks.EMPTY_CHOICES_BODY));
     }
 
     @IsTest
@@ -224,12 +241,12 @@ private class RIQ_AiInsightService_Test {
         String longAction = 'y'.repeat(900);
         String longReason = 'z'.repeat(900);
         String body =
-            '{"content":[{"type":"text","text":' +
+            '{"choices":[{"index":0,"message":{"role":"assistant","content":' +
             JSON.serialize(
                 '{"summary":"' + longSummary + '","nextBestAction":"' + longAction +
                 '","riskReasons":["' + longReason + '","b","c","d"]}'
             ) +
-            '}]}';
+            '}}]}';
 
         RIQ_AiInsightService.Insight insight = RIQ_AiInsightService.parseResponse(body);
 
@@ -303,15 +320,89 @@ private class RIQ_AiInsightService_Test {
         System.assertEquals(false, config.isEnabled, 'The shipped default is disabled, so no key is required.');
         System.assert(String.isNotBlank(config.modelName));
         System.assert(config.endpoint.startsWith('callout:'));
+        System.assertEquals('Groq', config.provider);
+        System.assertEquals('/openai/v1/chat/completions', config.requestPath);
+        System.assertEquals(
+            'callout:RIQ_LLM_API/openai/v1/chat/completions',
+            config.endpoint,
+            'The endpoint is the named credential plus the configured path.'
+        );
     }
 
     @IsTest
-    static void requestBodyIsValidForBothProviders() {
+    static void requestPathNormalizationSurvivesSloppyInput() {
+        System.assertEquals('/v1/chat/completions', RIQ_AiInsightService.normalizePath('v1/chat/completions'));
+        System.assertEquals('/v1/chat/completions', RIQ_AiInsightService.normalizePath('  /v1/chat/completions  '));
+        System.assertEquals(
+            '/openai/v1/chat/completions',
+            RIQ_AiInsightService.normalizePath('   '),
+            'A blank path falls back to the Groq default instead of a broken endpoint.'
+        );
+    }
+
+    @IsTest
+    static void requestBodyIsAnOpenAiStyleChatCompletion() {
         String body = RIQ_AiInsightService.buildRequestBody(enabledConfig(), 'Hello prompt');
         Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(body);
 
-        System.assertEquals('claude-3-5-haiku-latest', parsed.get('model'));
+        System.assertEquals('llama-3.3-70b-versatile', parsed.get('model'));
         System.assertEquals(400, ((Decimal) parsed.get('max_tokens')).intValue());
-        System.assertEquals(1, ((List<Object>) parsed.get('messages')).size());
+        System.assertEquals(0.2, ((Decimal) parsed.get('temperature')).doubleValue(), 'Low temperature keeps the prose repeatable.');
+        System.assertEquals('json_object', ((Map<String, Object>) parsed.get('response_format')).get('type'));
+
+        List<Object> messages = (List<Object>) parsed.get('messages');
+        System.assertEquals(2, messages.size());
+        System.assertEquals('system', ((Map<String, Object>) messages[0]).get('role'));
+        System.assertEquals('user', ((Map<String, Object>) messages[1]).get('role'));
+        System.assertEquals('Hello prompt', ((Map<String, Object>) messages[1]).get('content'));
+    }
+
+    @IsTest
+    static void requestBodyCarriesNoFreeTextOrPersonalData() {
+        RIQ_AiInsightService.configOverride = enabledConfig();
+        RIQ_CalloutMocks.Recorder recorder = new RIQ_CalloutMocks.Recorder();
+        Test.setMock(HttpCalloutMock.class, recorder);
+
+        RIQ_Health_Signal__c withNotes = new RIQ_Health_Signal__c(
+            Signal_Type__c = 'Support Escalation',
+            Severity__c = 4,
+            Occurred_On__c = Date.today().addDays(-2),
+            Notes__c = 'Call Jane Doe on +1 555 0100 or jane.doe@example.com'
+        );
+
+        Test.startTest();
+        RIQ_AiInsightService.generate(account('Groq Body Account'), new List<RIQ_Health_Signal__c>{ withNotes }, DRIVERS_JSON);
+        Test.stopTest();
+
+        Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(recorder.lastBody);
+        System.assertEquals('llama-3.3-70b-versatile', body.get('model'));
+        System.assertNotEquals(null, body.get('response_format'), 'JSON mode is requested, so the reply is parseable by contract.');
+        System.assertEquals(2, ((List<Object>) body.get('messages')).size());
+        System.assert(!recorder.lastBody.contains('Jane'), 'Notes must never reach the model.');
+        System.assert(!recorder.lastBody.contains('555'), 'No phone numbers.');
+        System.assert(!recorder.lastBody.contains('@example.com'), 'No email addresses.');
+    }
+
+    @IsTest
+    static void rateLimitFallsBackWithoutRetryingInProcess() {
+        RIQ_AiInsightService.configOverride = enabledConfig();
+        RIQ_CalloutMocks.Responder throttled = new RIQ_CalloutMocks.Responder(
+            429,
+            '{"error":{"message":"Rate limit reached"}}',
+            '12'
+        );
+        Test.setMock(HttpCalloutMock.class, throttled);
+
+        Test.startTest();
+        RIQ_AiInsightService.Insight insight = RIQ_AiInsightService.generate(
+            account('Throttled'),
+            new List<RIQ_Health_Signal__c>(),
+            DRIVERS_JSON
+        );
+        Test.stopTest();
+
+        System.assertEquals(RIQ_AiInsightService.SOURCE_RULE_BASED, insight.source);
+        System.assertEquals(1, throttled.callCount, 'Retry-After is read, never waited on: one request, one fallback.');
+        System.assertEquals('Support Escalation (-22 pts)', insight.riskReasons[0], 'The fallback still explains the account.');
     }
 }

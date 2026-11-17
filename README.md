@@ -224,19 +224,21 @@ no inbound caller, every screen still works.
 **Outbound — a written insight per account.** `RIQ_AiInsightService` builds a
 deterministic prompt from the score, the status, the top five drivers, the ten most
 recent signals, ARR and the contract end date, and asks a language model for a
-summary, a next best action and up to three risk reasons as JSON. The call goes
-through a **Named Credential** (`RIQ_LLM_API`) over an **External Credential** whose
-custom `x-api-key` header is filled from the org's protected credential store, so no
-key exists in code, metadata, tests, documentation or git. An `RIQ_AI_Config__mdt`
-record decides whether the callout happens at all — it ships **disabled**, so the
-project is reproducible without anyone's key — and holds the model name, token cap
-and timeout, which means switching model or provider is an admin edit, not a
-deployment.
+summary, a next best action and up to three risk reasons as JSON. The provider is
+**Groq** (`https://api.groq.com`, `/openai/v1/chat/completions`, OpenAI-compatible),
+reached through a **Named Credential** (`RIQ_LLM_API`) over an **External Credential**
+whose custom `Authorization: Bearer …` header is filled from the org's protected
+credential store, so no key exists in code, metadata, tests, documentation or git. An
+`RIQ_AI_Config__mdt` record decides whether the callout happens at all — it ships
+**disabled**, so the project is reproducible without anyone's key — and holds the
+provider, request path, model name, token cap and timeout, which means switching model
+or provider is an admin edit, not a deployment.
 
-The answer is treated as hostile input: code fences are stripped, both the Anthropic
-and OpenAI response shapes are read, missing fields are repaired and lengths are
-capped. Timeout, 429, 5xx, 400/401, empty or malformed content all land in the same
-place — a **rule-based insight** built from the score, drivers and signals, stored
+The request is an OpenAI-style chat completion (system instruction, user message,
+`temperature: 0.2`, JSON mode) and the answer is treated as hostile input: code
+fences are stripped, `choices[0].message.content` is read, missing fields are repaired
+and lengths are capped. Timeout, 429 (where `Retry-After` is logged but never waited
+on), 5xx, 400/401, empty or malformed content all land in the same place — a **rule-based insight** built from the score, drivers and signals, stored
 with `RIQ_AI_Source__c = 'Rule-based'` and shown with a **Rule based** badge instead
 of **AI generated**. The user never sees a raw error or an HTTP status, and a
 fallback can never be mistaken for a model answer.
@@ -336,7 +338,7 @@ force-app/main/default/
   applications/     RenewalIQ app
   classes/          Apex service, selector, handler, test classes
   customMetadata/   Scoring rules, status thresholds, RIQ AI Config (model, tokens, timeout, toggle)
-  externalCredentials/  RIQ_LLM_API principal with the x-api-key header (value never committed)
+  externalCredentials/  RIQ_LLM_API principal with the Authorization bearer header (value never committed)
   flexipages/       Lightning record pages
   flows/            RIQ_Account_Critical_Alert (record-triggered)
   lwc/              Command center, score card, signal logger, shared helpers (+ Jest)

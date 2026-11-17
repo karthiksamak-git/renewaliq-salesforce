@@ -20,10 +20,12 @@ signals by hand.
 
 ```
 RIQ_LLM_API        External Credential   principal "RIQ LLM Principal", custom auth header
-                                          x-api-key = {!$Credential.RIQ_LLM_API.apiKey}
-RIQ_LLM_API        Named Credential      SecuredEndpoint, https://api.anthropic.com
+                                          Authorization = Bearer {!$Credential.RIQ_LLM_API.apiKey}
+RIQ_LLM_API        Named Credential      SecuredEndpoint, https://api.groq.com
 RIQ_AI_Config__mdt Custom Metadata       one record "Default": Is_Enabled__c = false,
-                                          Model_Name__c = claude-3-5-haiku-latest,
+                                          Provider__c = Groq,
+                                          Request_Path__c = /openai/v1/chat/completions,
+                                          Model_Name__c = llama-3.3-70b-versatile,
                                           Max_Tokens__c = 400, Timeout_Seconds__c = 30
 RIQ_AI_Insight     Permission Set        principal access + RIQ_Generate_AI_Insight + AI fields
 ```
@@ -35,14 +37,15 @@ The class name is `RIQ_AiInsightService`; the async wrapper is
 
 ### Setup: turn it on (5 minutes, once)
 
-1. **Create the key** with the model provider (Anthropic, or any
-   OpenAI-compatible provider if you follow §1.5). Do not paste it into a chat,
-   a metadata file, a test, or this repository.
+1. **Create the key** at [console.groq.com](https://console.groq.com) → API Keys
+   (or with another OpenAI-compatible provider if you follow §1.5). Do not paste
+   it into a chat, a metadata file, a test, or this repository.
 2. In Salesforce: **Setup → Named Credentials → External Credentials →
    `RIQ_LLM_API` → Principals → `RIQ LLM Principal`**.
 3. Under **Authentication Parameters**, add a parameter named exactly
-   `apiKey` and paste the key as its value. Save, then use **Test** — it should
-   report success.
+   `apiKey` and paste the key as its value (the key only — the credential's
+   header adds `Bearer ` and the merge field in front of it). Save, then use
+   **Test** — it should report success.
    *The key lives only in the org's protected credential store. Nothing in this
    repository contains it, and the deployed External Credential ships with the
    parameter name and no value.*
@@ -68,21 +71,35 @@ toggle is off (`RIQ_AiInsightService_Test.disabledToggleMakesNoCallout`).
 
 ### 1.1 The request
 
-One POST to `callout:RIQ_LLM_API/v1/messages`, body:
+One POST to `callout:RIQ_LLM_API/openai/v1/chat/completions` — the Named
+Credential supplies the host, `Request_Path__c` supplies the path — with this
+body:
 
 ```json
 {
-  "model": "claude-3-5-haiku-latest",
+  "model": "llama-3.3-70b-versatile",
+  "messages": [
+    { "role": "system", "content": "You are a customer success analyst ... JSON only ..." },
+    { "role": "user", "content": "<deterministic account data>" }
+  ],
+  "temperature": 0.2,
   "max_tokens": 400,
-  "messages": [{ "role": "user", "content": "<deterministic prompt>" }]
+  "response_format": { "type": "json_object" }
 }
 ```
 
-`model`, `max_tokens` and `messages` are the intersection of the Anthropic and
-OpenAI chat APIs, so the same body works against either. The timeout comes from
-`Timeout_Seconds__c` (default 30s) and is set on the `HttpRequest`; callouts
-therefore cannot run past the 120-second synchronous transaction limit in a way
-that matters — the queueable caps itself at three accounts per job (§1.4).
+Four things are deliberate. The instruction lives in a **system** message and the
+account data in a **user** message, so the model is told its job once and the data
+cannot rewrite it. `temperature: 0.2` keeps two runs on the same account close to
+each other. `response_format: json_object` asks Groq for JSON mode, which makes the
+parseable answer the contract rather than a hope. And the headers carry no key: the
+External Credential injects `Authorization: Bearer …` at callout time, so nothing
+secret exists in Apex, in the log, or in a test.
+
+The timeout comes from `Timeout_Seconds__c` (default 30s) and is set on the
+`HttpRequest`; callouts therefore cannot run past the 120-second synchronous
+transaction limit in a way that matters — the queueable caps itself at three
+accounts per job (§1.4).
 
 ### 1.2 The prompt, and what never goes into it
 
@@ -104,9 +121,11 @@ them appear in the request body captured by the mock.
 
 The answer is treated as hostile input:
 
-- code fences (```` ```json ````) are stripped before parsing
-- both `content[0].text` (Anthropic) and `choices[0].message.content` (OpenAI)
-  are accepted
+- code fences (```` ```json ````) are stripped before parsing, because JSON mode
+  is a request, not a guarantee
+- the answer is read from `choices[0].message.content` — the only shape Groq
+  returns; the old Anthropic `content[]` branch was deleted with the provider
+  switch rather than left as untested dead code
 - a missing `summary`, a missing `nextBestAction` and a non-list or missing
   `riskReasons` are repaired rather than thrown on
 - summary is capped at 3000 characters, next best action at 255, at most three
@@ -121,7 +140,8 @@ instead of **AI generated**, so a fallback is never mistaken for a model answer.
 | --- | --- |
 | toggle disabled | no callout, rule-based insight |
 | timeout / callout exception | rule-based insight, reason logged at ERROR |
-| HTTP 429, 5xx, 400, 401 | rule-based insight; the status code is logged, never shown to the user |
+| HTTP 429 (rate limit) | immediate rule-based insight; `Retry-After` is read and logged, never slept or retried in-process |
+| HTTP 5xx, 400, 401, 413 | rule-based insight; the status code is logged, never shown to the user |
 | malformed or fenced JSON | repaired when possible, otherwise rule-based |
 | empty reply | rule-based |
 | user without permission | `AuraHandledException` with a readable message, nothing written |
@@ -144,20 +164,25 @@ either a usable insight or a friendly sentence.
 - Nothing calls out from a trigger, from the batch, or from platform-event
   handling.
 
-### 1.5 Switching to an OpenAI-compatible provider
+### 1.5 Switching provider
 
-1. **Setup → Named Credentials → `RIQ_LLM_API`**: change the URL to the
-   provider's base URL (for OpenAI, `https://api.openai.com`).
-2. **External Credential `RIQ_LLM_API` → `RIQ LLM Principal`**: change the
-   header name from `x-api-key` to `Authorization` and the value to
-   `Bearer {!$Credential.RIQ_LLM_API.apiKey}`, then re-enter the key. Anthropic's
-   `anthropic-version: 2023-06-01` header can be removed at the same time.
-3. **`RIQ AI Config` → `Default`**: set `Model_Name__c` to the provider's model
-   id (for example `gpt-4o-mini`). No code change, no deployment.
-4. The path is fixed at `/v1/messages`, which is Anthropic's. If the target
-   provider only serves `/v1/chat/completions`, change the single constant
-   `MESSAGES_PATH` in `RIQ_AiInsightService` and deploy. The response parser
-   already reads both shapes, so nothing else changes.
+The project targets Groq, and the provider is configuration, not code:
+
+1. **Setup → Named Credentials → `RIQ LLM (Groq)`**: change the **URL** to the
+   provider's base URL (for OpenAI, `https://api.openai.com`; for a gateway, its
+   host). Keep the API name `RIQ_LLM_API` — permission sets and Apex refer to it.
+2. **`RIQ AI Config` → `Default`**: set `Request_Path__c` to the provider's path
+   (for OpenAI, `/v1/chat/completions`; Groq's is
+   `/openai/v1/chat/completions`), and `Model_Name__c` to that provider's model id
+   (for example `gpt-4o-mini`). `Provider__c` is for whoever reads the config later;
+   nothing branches on it.
+3. **External Credential `RIQ_LLM_API` → `RIQ LLM Principal`**: only if the new
+   provider wants a different scheme. A `Bearer` token provider needs nothing;
+   a header-based provider (an `x-api-key` style API) is a header rename and a
+   value of `{!$Credential.RIQ_LLM_API.apiKey}`.
+4. The body is already plain OpenAI chat completions (`model`, `messages`,
+   `temperature`, `max_tokens`, `response_format`), and the parser already reads
+   `choices[0].message.content`, so no Apex changes and no deployment.
 
 ### 1.6 Verify with one live call
 
@@ -178,11 +203,14 @@ specific account id to target a record.
 
 | Symptom | Cause |
 | --- | --- |
-| always `Rule-based`, log says 401 | key wrong, or the authentication parameter is not named `apiKey` |
+| always `Rule-based`, log says 401 | key wrong/expired, the parameter is not named exactly `apiKey`, or the key was pasted with `Bearer ` already in it |
+| always `Rule-based`, log shows 429 with `Retry-After` | you are over the provider's free-tier rate limit; the app falls back on purpose and does not retry |
+| always `Rule-based`, log says 400 | `Request_Path__c` and the provider disagree, or `Model_Name__c` is not a model that provider serves |
 | log says 403 / "principal access" | user lacks External Credential Principal Access |
+| log says 404 | `Request_Path__c` has a typo — it is appended verbatim to the Named Credential URL |
 | nothing happens at all | `Is_Enabled__c` is still false |
 | `AuraHandledException: You do not have permission` | `RIQ_Generate_AI_Insight` not assigned |
-| works in one org, not another | `RIQ_LLM_API` points at a different base URL |
+| works in one org, not another | `RIQ_LLM_API` points at a different base URL, or the config record differs |
 
 ---
 
@@ -225,7 +253,8 @@ and `Test.setMock`:
   oversized batch, per-row DML failure, and a run-as test with only
   `RIQ_Integration_User`.
 
-**What the mocks do not prove:** that a real Anthropic endpoint accepts the
-request, that the key is valid, and that the model's answer fits the parser in
-practice. Those need one live call, which is §1.6. No credential is stored in the
-repository, so that call has to be made by whoever holds the key.
+**What the mocks do not prove:** that Groq accepts the request, that the
+`Authorization` header the External Credential builds is accepted, that the key is
+valid, and that a live model's answer fits the parser in practice. Those need one
+live call, which is §1.6. No credential is stored in the repository, so that call
+has to be made by whoever holds the key.

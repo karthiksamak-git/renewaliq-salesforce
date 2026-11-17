@@ -1,6 +1,8 @@
 /**
  * @description Turns an account's health data into a written insight: a
- * summary, a next best action and up to three risk reasons.
+ * summary, a next best action and up to three risk reasons. The provider is
+ * Groq's OpenAI-compatible chat completions API, reached through the
+ * RIQ_LLM_API External Credential so no key exists in Apex.
  *
  * Three rules shape this class:
  *
@@ -21,10 +23,14 @@ public with sharing class RIQ_AiInsightService {
 
     /** Named Credential created by this project's metadata. */
     private static final String NAMED_CREDENTIAL = 'callout:RIQ_LLM_API';
-    /** Anthropic Messages API path; an OpenAI-compatible gateway takes the same body. */
-    private static final String MESSAGES_PATH = '/v1/messages';
-    /** Required by the Anthropic API and ignored by OpenAI-compatible endpoints. */
-    private static final String ANTHROPIC_VERSION = '2023-06-01';
+    /** Groq's OpenAI-compatible chat completions path; overridable in metadata. */
+    private static final String DEFAULT_REQUEST_PATH = '/openai/v1/chat/completions';
+    /** Fixed instruction; the account data travels in the user message. */
+    private static final String SYSTEM_PROMPT =
+        'You are a customer success analyst writing a short internal note about one account. ' +
+        'Answer with JSON only: {"summary": "<=600 characters", "nextBestAction": "<=200 characters", ' +
+        '"riskReasons": ["<=3 short reasons"]}. Never include names, email addresses, phone numbers or ' +
+        'verbatim customer quotes.';
     /** DeveloperName of the single configuration record. */
     private static final String CONFIG_DEVELOPER_NAME = 'Default';
 
@@ -47,13 +53,17 @@ public with sharing class RIQ_AiInsightService {
         /** Master switch: false means no callout at all. */
         public Boolean isEnabled = false;
         /** Model identifier sent in the body. */
-        public String modelName = 'claude-3-5-haiku-latest';
+        public String modelName = 'llama-3.3-70b-versatile';
+        /** Which OpenAI-compatible provider this targets; operator documentation. */
+        public String provider = 'Groq';
+        /** Path appended to the Named Credential URL. */
+        public String requestPath = DEFAULT_REQUEST_PATH;
         /** Response token budget. */
         public Integer maxTokens = 400;
         /** Callout timeout in seconds. */
         public Integer timeoutSeconds = 30;
         /** Fully resolved endpoint, including the named credential prefix. */
-        public String endpoint = NAMED_CREDENTIAL + MESSAGES_PATH;
+        public String endpoint = NAMED_CREDENTIAL + DEFAULT_REQUEST_PATH;
     }
 
     /** The insight the UI renders. */
@@ -99,7 +109,7 @@ public with sharing class RIQ_AiInsightService {
 
         Config config = new Config();
         List<RIQ_AI_Config__mdt> records = [
-            SELECT Is_Enabled__c, Model_Name__c, Max_Tokens__c, Timeout_Seconds__c
+            SELECT Is_Enabled__c, Model_Name__c, Max_Tokens__c, Timeout_Seconds__c, Provider__c, Request_Path__c
             FROM RIQ_AI_Config__mdt
             WHERE DeveloperName = :CONFIG_DEVELOPER_NAME
             LIMIT 1
@@ -116,7 +126,28 @@ public with sharing class RIQ_AiInsightService {
         config.timeoutSeconds = record.Timeout_Seconds__c == null
             ? config.timeoutSeconds
             : record.Timeout_Seconds__c.intValue();
+        config.provider = String.isBlank(record.Provider__c) ? config.provider : record.Provider__c;
+        config.requestPath = String.isBlank(record.Request_Path__c)
+            ? config.requestPath
+            : normalizePath(record.Request_Path__c);
+        config.endpoint = NAMED_CREDENTIAL + config.requestPath;
         return config;
+    }
+
+    /**
+     * @description Keeps the path usable whether or not the admin typed a leading
+     * slash, because an endpoint is not the place to be pedantic about input.
+     * @param path Configured path.
+     * @return Path beginning with a slash.
+     */
+    public static String normalizePath(String path) {
+        String trimmed = path == null ? '' : path.trim();
+
+        if (String.isBlank(trimmed)) {
+            return DEFAULT_REQUEST_PATH;
+        }
+
+        return trimmed.startsWith('/') ? trimmed : '/' + trimmed;
     }
 
     /**
@@ -225,18 +256,27 @@ public with sharing class RIQ_AiInsightService {
     }
 
     /**
+     * @description The OpenAI-compatible chat completion body Groq expects: a
+     * system instruction, the account data as the user message, a low temperature
+     * for repeatable prose, and JSON mode so the answer is parseable by contract
+     * rather than by hope.
      * @param config Resolved configuration.
      * @param prompt Prompt text.
-     * @return JSON request body. The shape is valid for the Anthropic Messages
-     *         API and for OpenAI-compatible chat completions, which is what
-     *         makes the endpoint swappable.
+     * @return JSON request body.
      */
     public static String buildRequestBody(Config config, String prompt) {
-        Map<String, Object> message = new Map<String, Object>{ 'role' => 'user', 'content' => prompt };
+        Map<String, Object> systemMessage = new Map<String, Object>{
+            'role' => 'system',
+            'content' => SYSTEM_PROMPT
+        };
+        Map<String, Object> userMessage = new Map<String, Object>{ 'role' => 'user', 'content' => prompt };
+        Map<String, Object> responseFormat = new Map<String, Object>{ 'type' => 'json_object' };
         Map<String, Object> payload = new Map<String, Object>{
             'model' => config.modelName,
+            'messages' => new List<Object>{ systemMessage, userMessage },
+            'temperature' => 0.2,
             'max_tokens' => config.maxTokens,
-            'messages' => new List<Object>{ message }
+            'response_format' => responseFormat
         };
         return JSON.serialize(payload);
     }
@@ -258,7 +298,6 @@ public with sharing class RIQ_AiInsightService {
         request.setEndpoint(config.endpoint);
         request.setMethod('POST');
         request.setHeader('Content-Type', 'application/json');
-        request.setHeader('anthropic-version', ANTHROPIC_VERSION);
         request.setTimeout(timeoutMs);
         request.setBody(body);
 
@@ -269,11 +308,17 @@ public with sharing class RIQ_AiInsightService {
             result.ok = result.statusCode == 200 && String.isNotBlank(result.body);
 
             if (!result.ok) {
-                // 429 and 5xx are retried by nothing here on purpose: the next
-                // signal or the next nightly run will regenerate the insight.
+                // Nothing is retried or slept on here on purpose: a synchronous
+                // record-page action must return, and the next signal or nightly
+                // run regenerates the insight. A Retry-After value is read only so
+                // the log tells an operator how hard they are being throttled.
+                String retryAfter = retryAfterHeader(response);
                 System.debug(
                     LoggingLevel.WARN,
-                    'RenewalIQ AI: model responded ' + result.statusCode + ' (falling back to rules).'
+                    'RenewalIQ AI: model responded ' +
+                    result.statusCode +
+                    (retryAfter == null ? '' : ' (Retry-After: ' + retryAfter + 's)') +
+                    ' - falling back to rules.'
                 );
             }
         } catch (CalloutException calloutFailure) {
@@ -284,9 +329,21 @@ public with sharing class RIQ_AiInsightService {
     }
 
     /**
-     * @description Parses a model response defensively. Handles the Anthropic
-     * content-block shape, the OpenAI choices shape, JSON wrapped in code
-     * fences, and a body that is not JSON at all.
+     * @description Reads Retry-After without acting on it. Sleeping inside a
+     * callout would burn the transaction's CPU and still fail the page, so the
+     * only thing done with the value is report it.
+     * @param response The throttled response, when there is one.
+     * @return Seconds to wait, or null.
+     */
+    private static String retryAfterHeader(HttpResponse response) {
+        String value = response == null ? null : response.getHeader('Retry-After');
+        return String.isBlank(value) ? null : value.trim();
+    }
+
+    /**
+     * @description Parses a model response defensively. Handles the
+     * OpenAI-compatible choices shape Groq returns, JSON wrapped in a Markdown
+     * code fence, and a body that is not JSON at all.
      * @param body Raw response body.
      * @return Insight, or null when nothing usable was returned.
      */
@@ -327,8 +384,12 @@ public with sharing class RIQ_AiInsightService {
     }
 
     /**
+     * @description Reads choices[0].message.content. The Anthropic content-block
+     * branch was removed with the provider switch: nothing in the project targets
+     * an Anthropic endpoint any more, and untested compatibility branches are
+     * dead code that rots quietly.
      * @param body Response body.
-     * @return The text the model produced, from either response shape.
+     * @return The text the model produced, or null.
      */
     private static String extractContent(String body) {
         if (String.isBlank(body)) {
@@ -337,17 +398,6 @@ public with sharing class RIQ_AiInsightService {
 
         try {
             Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(body);
-
-            if (root.get('content') instanceof List<Object>) {
-                for (Object block : (List<Object>) root.get('content')) {
-                    if (block instanceof Map<String, Object>) {
-                        String text = asString(((Map<String, Object>) block).get('text'));
-                        if (String.isNotBlank(text)) {
-                            return text;
-                        }
-                    }
-                }
-            }
 
             if (root.get('choices') instanceof List<Object>) {
                 List<Object> choices = (List<Object>) root.get('choices');
