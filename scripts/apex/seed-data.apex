@@ -116,11 +116,17 @@ for (Integer i = 0; i < rows.size(); i++) {
         bandIndex = 12 + Math.mod(i, 6);
     }
 
+    // Renewals are lumpy in real books: most contracts renew inside the next four
+    // months (which is what the 120 day playbook and the 90 day default window look
+    // at), the rest are spread out to just over a year, and a few have already
+    // lapsed. A uniform spread over 400 days leaves the table almost empty.
     Integer contractOffset;
     if (Math.mod(i, 13) == 0) {
         contractOffset = -5 - Math.mod(i, 20);
+    } else if (Math.mod(i, 5) < 3) {
+        contractOffset = 1 + Math.mod(i * 37, 120);
     } else {
-        contractOffset = Math.mod(i * 29, 400) + 1;
+        contractOffset = 121 + Math.mod(i * 53, 280);
     }
 
     accountsToInsert.add(
