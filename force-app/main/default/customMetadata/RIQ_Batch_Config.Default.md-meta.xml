@@ -10,4 +10,8 @@
         <field>Batch_Size__c</field>
         <value xsi:type="xsd:double">200.0</value>
     </values>
+    <values>
+        <field>Log_Retention_Days__c</field>
+        <value xsi:type="xsd:double">30.0</value>
+    </values>
 </CustomMetadata>

@@ -47,7 +47,14 @@ public with sharing class RIQ_NightlyScoreBatch implements Database.Batchable<SO
     public Database.QueryLocator start(Database.BatchableContext context) {
         Set<Id> accountIdsWithSignals = new Set<Id>();
 
-        for (RIQ_Health_Signal__c signal : [SELECT Account__c FROM RIQ_Health_Signal__c]) {
+        // SYSTEM_MODE on purpose: the nightly run is a maintenance job that must
+        // score the whole book of business, not the subset its scheduling user
+        // happens to own. It writes only system-maintained score fields and
+        // reads no free text.
+        // NOPMD AvoidNonRestrictiveQueries: an unfiltered read here is the point.
+        // The batch has to know every account that has any signal at all; a
+        // restrictive filter would silently shrink the book of business.
+        for (RIQ_Health_Signal__c signal : [SELECT Account__c FROM RIQ_Health_Signal__c WITH SYSTEM_MODE]) { // NOPMD an unfiltered read is the point
             if (signal.Account__c != null) {
                 accountIdsWithSignals.add(signal.Account__c);
             }
@@ -59,6 +66,7 @@ public with sharing class RIQ_NightlyScoreBatch implements Database.Batchable<SO
                 FROM Account
                 WHERE RIQ_ARR__c != NULL
                     OR Id IN :accountIdsWithSignals
+                WITH SYSTEM_MODE
             ]
         );
     }
@@ -91,26 +99,23 @@ public with sharing class RIQ_NightlyScoreBatch implements Database.Batchable<SO
      * @param context Batch context supplied by the platform.
      */
     public void finish(Database.BatchableContext context) {
-        Id jobId = context == null ? null : context.getJobId();
-
-        System.debug(
-            LoggingLevel.INFO,
-            'RenewalIQ nightly score complete - job: ' +
-                jobId +
-                ', chunks: ' +
-                chunkCount +
-                ', processed: ' +
-                processedCount +
-                ', status changes: ' +
-                statusChangeCount +
-                ', first scores: ' +
-                initialScoreCount +
-                ', failures: ' +
-                failureCount
-        );
+        String jobId = context == null || context.getJobId() == null ? null : String.valueOf(context.getJobId());
+        String summary =
+            'chunks: ' +
+            chunkCount +
+            ', processed: ' +
+            processedCount +
+            ', status changes: ' +
+            statusChangeCount +
+            ', first scores: ' +
+            initialScoreCount +
+            ', failures: ' +
+            failureCount;
 
         if (failureCount > 0) {
-            System.debug(LoggingLevel.WARN, 'RenewalIQ nightly score finished with ' + failureCount + ' failure(s).');
+            RIQ_Logger.warn('RIQ_NightlyScoreBatch', 'Nightly score finished with failures - ' + summary, jobId);
+        } else {
+            RIQ_Logger.info('RIQ_NightlyScoreBatch', 'Nightly score complete - ' + summary, jobId);
         }
     }
 

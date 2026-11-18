@@ -161,7 +161,10 @@ function shortNumber(number, digits) {
   const factor = 10 ** digits;
   const truncated = Math.trunc(number * factor) / factor;
 
-  return truncated.toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+  return truncated
+    .toFixed(digits)
+    .replace(/\.0+$/, '')
+    .replace(/(\.\d*?)0+$/, '$1');
 }
 
 /**

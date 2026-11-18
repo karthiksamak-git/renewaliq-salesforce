@@ -64,6 +64,10 @@ public with sharing class RIQ_PlaybookService {
         }
 
         Set<Id> accountIds = latestEventByAccount.keySet();
+        // SYSTEM_MODE throughout this class. The subscriber runs as the Automated
+        // Process user, which owns none of these records and holds no RenewalIQ
+        // permission set; enforcing the scheduling user's sharing here would make
+        // the playbook silently stop working the moment an account changed owner.
         Map<Id, Account> accountsById = new Map<Id, Account>(
             new RIQ_AccountSelector(AccessLevel.SYSTEM_MODE).getByIds(accountIds)
         );
@@ -124,7 +128,7 @@ public with sharing class RIQ_PlaybookService {
             System.enqueueJob(new RIQ_AiInsightQueueable(accountIds));
             return true;
         } catch (Exception enqueueFailure) {
-            System.debug(LoggingLevel.WARN, 'RenewalIQ: insight job was not enqueued - ' + enqueueFailure.getMessage());
+            RIQ_Logger.warn('RIQ_PlaybookService', 'Insight job was not enqueued.', enqueueFailure);
             return false;
         }
     }
@@ -196,6 +200,7 @@ public with sharing class RIQ_PlaybookService {
             SELECT Id, WhatId, Subject
             FROM Task
             WHERE WhatId IN :accountIds AND IsClosed = FALSE AND Subject LIKE :subjectPattern
+            WITH SYSTEM_MODE
         ]) {
             rememberTask(subjectsByAccount, existingTask.WhatId, existingTask.Subject);
         }
@@ -216,6 +221,7 @@ public with sharing class RIQ_PlaybookService {
             SELECT AccountId
             FROM Opportunity
             WHERE AccountId IN :accountIds AND Type = :RENEWAL_OPPORTUNITY_TYPE AND IsClosed = FALSE
+            WITH SYSTEM_MODE
         ]) {
             accountIdsWithRenewal.add(renewal.AccountId);
         }
@@ -265,7 +271,7 @@ public with sharing class RIQ_PlaybookService {
             if (saveResult.isSuccess()) {
                 inserted++;
             } else {
-                System.debug(LoggingLevel.ERROR, 'RenewalIQ: could not create outreach task - ' + saveResult.getErrors());
+                RIQ_Logger.error('RIQ_PlaybookService', 'Could not create an outreach task.', null, String.valueOf(saveResult.getId()));
             }
         }
 
@@ -286,7 +292,7 @@ public with sharing class RIQ_PlaybookService {
             if (saveResult.isSuccess()) {
                 inserted++;
             } else {
-                System.debug(LoggingLevel.ERROR, 'RenewalIQ: could not create renewal opportunity - ' + saveResult.getErrors());
+                RIQ_Logger.error('RIQ_PlaybookService', 'Could not create a renewal opportunity.', null, String.valueOf(saveResult.getId()));
             }
         }
 

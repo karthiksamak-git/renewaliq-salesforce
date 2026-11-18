@@ -205,7 +205,7 @@ private class RIQ_AccountHealthController_Test {
         }
 
         try {
-            RIQ_AccountHealthController.getHealthCard('001000000000001AAA');
+            RIQ_AccountHealthController.getHealthCard(RIQ_TestDataFactory.nonExistentAccountId());
         } catch (AuraHandledException friendly) {
             missingRejected = true;
             System.assert(friendly.getMessage().contains('access'));
@@ -294,7 +294,7 @@ private class RIQ_AccountHealthController_Test {
         }
 
         try {
-            RIQ_AccountHealthController.recalculate('001000000000001AAA');
+            RIQ_AccountHealthController.recalculate(RIQ_TestDataFactory.nonExistentAccountId());
         } catch (AuraHandledException expected) {
             failures++;
         }
@@ -557,7 +557,7 @@ private class RIQ_AccountHealthController_Test {
         Boolean rejected = false;
 
         try {
-            RIQ_AccountHealthController.generateInsight('001000000000001AAA');
+            RIQ_AccountHealthController.generateInsight(RIQ_TestDataFactory.nonExistentAccountId());
         } catch (AuraHandledException friendly) {
             rejected = true;
             System.assert(friendly.getMessage().contains('not exist'), 'The message explains the miss.');

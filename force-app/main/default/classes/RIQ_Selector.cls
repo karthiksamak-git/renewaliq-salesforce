@@ -11,7 +11,11 @@
  * Selectors do not declare a sharing keyword; they inherit the caller's mode.
  * USER_MODE still enforces sharing for the records themselves.
  */
-public virtual class RIQ_Selector {
+// NOPMD ApexSharingViolations: this class deliberately declares no sharing
+// keyword and inherits the caller's mode. USER_MODE still enforces record
+// sharing on every query; declaring `with sharing` here would silently change
+// the behaviour of the system-context callers that pass SYSTEM_MODE.
+public virtual class RIQ_Selector { // NOPMD inherits the caller's sharing mode on purpose
     @TestVisible
     private AccessLevel accessMode;
 

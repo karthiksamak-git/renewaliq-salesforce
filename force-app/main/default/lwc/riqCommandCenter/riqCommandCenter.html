@@ -209,7 +209,9 @@
                             <td class="riq-td riq-td_num">{row.churnDisplay}</td>
                             <td class="riq-td riq-td_num" title={row.arrFull}>{row.arrDisplay}</td>
                             <td class="riq-td">{row.renewalDisplay}</td>
-                            <td class="riq-td riq-td_truncate" title={row.lastScoredDisplay}>{row.lastScoredDisplay}</td>
+                            <td class="riq-td riq-td_truncate" title={row.lastScoredDisplay}>
+                              {row.lastScoredDisplay}
+                            </td>
                             <td class="riq-td riq-td_actions">
                               <button
                                 type="button"

@@ -33,8 +33,8 @@ sf org assign permset --name RIQ_Admin --target-org RenewalIQ
   the status distribution donut with its legend, and the accounts table sorted by score.
 - **Setup:** renewal window **Next 90 days**, owner **All owners**, status
   **At Risk + Critical**.
-- **Caption material:** "One screen answers *how bad is it* (KPIs), *where* (distribution)
-  and *who* (drill-down), and the table sorts and filters **server side**."
+- **Caption material:** "One screen answers _how bad is it_ (KPIs), _where_ (distribution)
+  and _who_ (drill-down), and the table sorts and filters **server side**."
 
 ## 2. Command Center — filtered and sorted
 
@@ -126,7 +126,7 @@ sf org assign permset --name RIQ_Admin --target-org RenewalIQ
 
 ---
 
-## What is *not* verified in this repository
+## What is _not_ verified in this repository
 
 The components were deployed to the org and their bundles compiled, and the behaviour is
 covered by 53 Jest tests (rendering, filters, sort, row action, recalculate, insight panel,

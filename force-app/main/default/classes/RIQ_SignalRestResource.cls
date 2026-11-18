@@ -135,7 +135,7 @@ global with sharing class RIQ_SignalRestResource {
             statusCode = 400;
             result = errorResponse('The request body is not valid JSON.');
         } catch (Exception unexpected) {
-            System.debug(LoggingLevel.ERROR, 'RenewalIQ REST: unhandled failure - ' + unexpected.getMessage());
+            RIQ_Logger.error('RIQ_SignalRestResource', 'Unhandled failure while processing an inbound signal batch.', unexpected);
             statusCode = 500;
             result = errorResponse('The request could not be processed. No changes were made.');
         }
@@ -358,7 +358,7 @@ global with sharing class RIQ_SignalRestResource {
         } catch (QueryException noAccess) {
             // A caller without account access gets a per-record "no account"
             // error, not a 500: the request was understood, it was not permitted.
-            System.debug(LoggingLevel.WARN, 'RenewalIQ REST: account lookup refused - ' + noAccess.getMessage());
+            RIQ_Logger.warn('RIQ_SignalRestResource', 'Account lookup was refused by sharing or field permissions.', noAccess);
             return new Map<String, Id>();
         }
 
@@ -474,8 +474,11 @@ global with sharing class RIQ_SignalRestResource {
             messages.add(error.getMessage());
         }
 
-        System.debug(LoggingLevel.WARN, 'RenewalIQ REST: signal upsert failed - ' + String.join(messages, '; '));
-        return String.join(messages, '; ');
+        // The operator gets the field names and status codes; the caller gets a
+        // sentence. DML text can name fields and record ids the integration user
+        // was never meant to see, and a machine client gains nothing from it.
+        RIQ_Logger.warn('RIQ_SignalRestResource', 'Signal upsert failed: ' + String.join(messages, '; '));
+        return 'The signal could not be saved. Check the values and the integration user\'s permissions.';
     }
 
     /**

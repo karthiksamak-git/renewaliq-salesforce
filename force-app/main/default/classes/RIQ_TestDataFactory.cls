@@ -127,12 +127,37 @@ public class RIQ_TestDataFactory {
 
         insert user;
 
-        for (String permissionSetName : permissionSetNames) {
-            PermissionSet permissionSet = [SELECT Id FROM PermissionSet WHERE Name = :permissionSetName LIMIT 1];
-            insert new PermissionSetAssignment(AssigneeId = user.Id, PermissionSetId = permissionSet.Id);
+        // One query and one insert for the whole list: a query and a DML inside
+        // a loop is exactly what the PMD rule forbids, and a persona test that
+        // grows to three permission sets should not grow to six statements.
+        Map<String, Id> permissionSetIdsByName = new Map<String, Id>();
+
+        for (PermissionSet permissionSet : [SELECT Id, Name FROM PermissionSet WHERE Name IN :permissionSetNames]) {
+            permissionSetIdsByName.put(permissionSet.Name, permissionSet.Id);
         }
 
+        List<PermissionSetAssignment> assignments = new List<PermissionSetAssignment>();
+
+        for (String permissionSetName : permissionSetNames) {
+            Id permissionSetId = permissionSetIdsByName.get(permissionSetName);
+            Assert.isNotNull(permissionSetId, 'Missing permission set in this org: ' + permissionSetName);
+            assignments.add(new PermissionSetAssignment(AssigneeId = user.Id, PermissionSetId = permissionSetId));
+        }
+
+        insert assignments;
         return user;
+    }
+
+    /**
+     * @description A syntactically valid Account id that cannot exist. Built at
+     * runtime from the real key prefix so tests never depend on an id literal,
+     * which is the one thing that genuinely breaks between orgs.
+     * @return An 18 character id that resolves to no record.
+     */
+    public static Id nonExistentAccountId() {
+        // A 15 character id: Salesforce validates the checksum of an 18 character
+        // id, so a synthesised one has to stay in the short form.
+        return Id.valueOf(Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix() + '0'.repeat(12));
     }
 
     /**

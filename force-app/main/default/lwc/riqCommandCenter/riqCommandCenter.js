@@ -380,9 +380,7 @@ export default class RiqCommandCenter extends LightningElement {
         key: 'risk',
         label: 'ARR at risk',
         value: formatInrCompact(this.kpis.arrAtRisk),
-        title: `${formatInr(
-          this.kpis.arrAtRisk
-        )} — Yearly revenue from customers rated At Risk or Critical`,
+        title: `${formatInr(this.kpis.arrAtRisk)} — Yearly revenue from customers rated At Risk or Critical`,
         hint: 'At Risk and Critical customers'
       },
       {
@@ -396,9 +394,7 @@ export default class RiqCommandCenter extends LightningElement {
         key: 'score',
         label: 'Average score',
         value:
-          this.kpis.averageScore === null || this.kpis.averageScore === undefined
-            ? '—'
-            : `${this.kpis.averageScore}`,
+          this.kpis.averageScore === null || this.kpis.averageScore === undefined ? '—' : `${this.kpis.averageScore}`,
         title: 'Average health score of the accounts in scope, out of 100.',
         hint: 'out of 100'
       },

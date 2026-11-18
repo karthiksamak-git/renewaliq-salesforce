@@ -1,0 +1,14 @@
+# Salesforce Code Analyzer v5 configuration.
+#
+# Loaded automatically from config/code-analyzer.yml. Paths resolve from the
+# project root (config_root).
+#
+#   sf code-analyzer run --config-file config/code-analyzer.yml \
+#       --workspace . --rule-selector pmd --view table
+#
+# ESLint for LWC is run through its own npm script (`npm run lint`) so the two
+# checks stay independent and a local LWC lint failure never hides an Apex one.
+engines:
+  pmd:
+    custom_rulesets:
+      - config/pmd-ruleset.xml

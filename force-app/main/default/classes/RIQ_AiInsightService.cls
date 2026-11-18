@@ -108,7 +108,7 @@ public with sharing class RIQ_AiInsightService {
         }
 
         Config config = new Config();
-        List<RIQ_AI_Config__mdt> records = [
+        List<RIQ_AI_Config__mdt> records = [ // NOPMD custom metadata has no FLS or sharing
             SELECT Is_Enabled__c, Model_Name__c, Max_Tokens__c, Timeout_Seconds__c, Provider__c, Request_Path__c
             FROM RIQ_AI_Config__mdt
             WHERE DeveloperName = :CONFIG_DEVELOPER_NAME
@@ -182,7 +182,7 @@ public with sharing class RIQ_AiInsightService {
             } catch (Exception unexpected) {
                 // A defect in prompt building or parsing must not cost the user
                 // their page: fall through to the rule-based insight.
-                System.debug(LoggingLevel.ERROR, 'RenewalIQ AI: unexpected failure - ' + unexpected.getMessage());
+                RIQ_Logger.error('RIQ_AiInsightService', 'Insight generation failed, using the rule-based fallback.', unexpected);
             }
         }
 
@@ -317,16 +317,18 @@ public with sharing class RIQ_AiInsightService {
                 // run regenerates the insight. A Retry-After value is read only so
                 // the log tells an operator how hard they are being throttled.
                 String retryAfter = retryAfterHeader(response);
-                System.debug(
-                    LoggingLevel.WARN,
-                    'RenewalIQ AI: model responded ' +
+                RIQ_Logger.warn(
+                    'RIQ_AiInsightService',
+                    'Model responded ' +
                     result.statusCode +
                     (retryAfter == null ? '' : ' (Retry-After: ' + retryAfter + 's)') +
-                    ' - falling back to rules.'
+                    ', using the rule-based fallback.'
                 );
             }
         } catch (CalloutException calloutFailure) {
-            System.debug(LoggingLevel.WARN, 'RenewalIQ AI: callout failed - ' + calloutFailure.getMessage());
+            // A missing key, a wrong endpoint or a timeout all land here. The
+            // message is safe to store: it names the endpoint, never the key.
+            RIQ_Logger.warn('RIQ_AiInsightService', 'The model callout failed, using the rule-based fallback.', calloutFailure);
         }
 
         return result;
@@ -362,7 +364,7 @@ public with sharing class RIQ_AiInsightService {
         try {
             parsed = JSON.deserializeUntyped(unwrapJson(content));
         } catch (Exception notJson) {
-            System.debug(LoggingLevel.WARN, 'RenewalIQ AI: response content was not JSON.');
+            RIQ_Logger.warn('RIQ_AiInsightService', 'Model response content was not JSON, using the rule-based fallback.');
             return null;
         }
 
@@ -415,7 +417,7 @@ public with sharing class RIQ_AiInsightService {
                 }
             }
         } catch (Exception unreadable) {
-            System.debug(LoggingLevel.WARN, 'RenewalIQ AI: response envelope was not JSON.');
+            RIQ_Logger.warn('RIQ_AiInsightService', 'Model response envelope was not JSON.');
         }
 
         return null;
@@ -533,7 +535,7 @@ public with sharing class RIQ_AiInsightService {
             }
         } catch (Exception unreadable) {
             // A hand-edited payload degrades to "no drivers", never to an error.
-            System.debug(LoggingLevel.WARN, 'RenewalIQ AI: unreadable drivers JSON.');
+            RIQ_Logger.warn('RIQ_AiInsightService', 'Unreadable drivers JSON, continuing without drivers.');
             return new List<String>();
         }
 

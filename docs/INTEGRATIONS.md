@@ -3,10 +3,10 @@
 RenewalIQ talks to the outside world in exactly two directions, and both are
 deliberately boring so that a reviewer can audit them in a few minutes.
 
-| Direction | Mechanism | Entry point |
-| --- | --- | --- |
+| Direction                                                | Mechanism                                                                                | Entry point                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Outbound: write an account insight with a language model | External Credential + Named Credential (`RIQ_LLM_API`), called by `RIQ_AiInsightService` | `RIQ_AccountHealthController.generateInsight`, `RIQ_AiInsightQueueable` |
-| Inbound: accept health signals from another system | Apex REST `@RestResource(urlMapping='/riq/v1/signals/*')` | `RIQ_SignalRestResource` |
+| Inbound: accept health signals from another system       | Apex REST `@RestResource(urlMapping='/riq/v1/signals/*')`                                | `RIQ_SignalRestResource`                                                |
 
 Both are optional. With no API key and no inbound caller, every screen still
 works: the insight falls back to rules and the signal logger still records
@@ -46,15 +46,15 @@ The class name is `RIQ_AiInsightService`; the async wrapper is
    `apiKey` and paste the key as its value (the key only — the credential's
    header adds `Bearer ` and the merge field in front of it). Save, then use
    **Test** — it should report success.
-   *The key lives only in the org's protected credential store. Nothing in this
+   _The key lives only in the org's protected credential store. Nothing in this
    repository contains it, and the deployed External Credential ships with the
-   parameter name and no value.*
+   parameter name and no value._
 4. **Setup → Custom Metadata Types → `RIQ AI Config` → Manage Records →
    `Default` → Edit** and tick **Is Enabled**. This is the switch that decides
    whether any callout is attempted at all.
 5. **Setup → Users → Permission Sets → `RIQ_AI_Insight`** (or `RIQ_Admin` /
    `RIQ_CSM`, which include it) and assign it to the users who may generate
-   insights. The permission set grants *External Credential Principal Access*
+   insights. The permission set grants _External Credential Principal Access_
    for `RIQ LLM Principal`, the custom permission `RIQ_Generate_AI_Insight`, and
    read/edit on the AI fields. Without the principal access the callout fails
    with an authentication error even when the key is correct — that is the
@@ -121,7 +121,7 @@ them appear in the request body captured by the mock.
 
 The answer is treated as hostile input:
 
-- code fences (```` ```json ````) are stripped before parsing, because JSON mode
+- code fences (` ```json `) are stripped before parsing, because JSON mode
   is a request, not a guarantee
 - the answer is read from `choices[0].message.content` — the only shape Groq
   returns; the old Anthropic `content[]` branch was deleted with the provider
@@ -136,15 +136,15 @@ score, status, drivers and recent signals, stored with
 `RIQ_AI_Source__c = 'Rule-based'`. The badge on the card reads **Rule based**
 instead of **AI generated**, so a fallback is never mistaken for a model answer.
 
-| Situation | Behaviour |
-| --- | --- |
-| toggle disabled | no callout, rule-based insight |
-| timeout / callout exception | rule-based insight, reason logged at ERROR |
-| HTTP 429 (rate limit) | immediate rule-based insight; `Retry-After` is read and logged, never slept or retried in-process |
-| HTTP 5xx, 400, 401, 413 | rule-based insight; the status code is logged, never shown to the user |
-| malformed or fenced JSON | repaired when possible, otherwise rule-based |
-| empty reply | rule-based |
-| user without permission | `AuraHandledException` with a readable message, nothing written |
+| Situation                   | Behaviour                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| toggle disabled             | no callout, rule-based insight                                                                    |
+| timeout / callout exception | rule-based insight, reason logged at ERROR                                                        |
+| HTTP 429 (rate limit)       | immediate rule-based insight; `Retry-After` is read and logged, never slept or retried in-process |
+| HTTP 5xx, 400, 401, 413     | rule-based insight; the status code is logged, never shown to the user                            |
+| malformed or fenced JSON    | repaired when possible, otherwise rule-based                                                      |
+| empty reply                 | rule-based                                                                                        |
+| user without permission     | `AuraHandledException` with a readable message, nothing written                                   |
 
 The user never sees a raw error, a stack trace or an HTTP status. The card gets
 either a usable insight or a friendly sentence.
@@ -202,17 +202,17 @@ specific account id to target a record.
 
 ### 1.7 Troubleshooting
 
-| Symptom | Cause |
-| --- | --- |
-| always `Rule-based`, log says 401 | key wrong/expired, the parameter is not named exactly `apiKey`, or the key was pasted with `Bearer ` already in it |
-| always `Rule-based`, log shows 429 with `Retry-After` | you are over the provider's free-tier rate limit; the app falls back on purpose and does not retry |
-| always `Rule-based`, log says 400 | `Request_Path__c` and the provider disagree, or `Model_Name__c` is not a model that provider serves |
-| log says 403 / "principal access" | user lacks External Credential Principal Access |
-| log says 404 | `Request_Path__c` has a typo — it is appended verbatim to the Named Credential URL. If the path is right, the **model id is wrong or retired**: Groq answers `404 model_not_found`, and `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer <key>"` lists what the key can actually use. `llama-3.3-70b-versatile` was withdrawn; the shipped default is `openai/gpt-oss-120b` |
-| log says 400 `json_validate_failed` | JSON mode was requested but the model could not produce valid JSON in the token budget — raise `Max_Tokens__c` (400 works for `openai/gpt-oss-120b`) |
-| nothing happens at all | `Is_Enabled__c` is still false |
-| `AuraHandledException: You do not have permission` | `RIQ_Generate_AI_Insight` not assigned |
-| works in one org, not another | `RIQ_LLM_API` points at a different base URL, or the config record differs |
+| Symptom                                               | Cause                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| always `Rule-based`, log says 401                     | key wrong/expired, the parameter is not named exactly `apiKey`, or the key was pasted with `Bearer ` already in it                                                                                                                                                                                                                                                                               |
+| always `Rule-based`, log shows 429 with `Retry-After` | you are over the provider's free-tier rate limit; the app falls back on purpose and does not retry                                                                                                                                                                                                                                                                                               |
+| always `Rule-based`, log says 400                     | `Request_Path__c` and the provider disagree, or `Model_Name__c` is not a model that provider serves                                                                                                                                                                                                                                                                                              |
+| log says 403 / "principal access"                     | user lacks External Credential Principal Access                                                                                                                                                                                                                                                                                                                                                  |
+| log says 404                                          | `Request_Path__c` has a typo — it is appended verbatim to the Named Credential URL. If the path is right, the **model id is wrong or retired**: Groq answers `404 model_not_found`, and `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer <key>"` lists what the key can actually use. `llama-3.3-70b-versatile` was withdrawn; the shipped default is `openai/gpt-oss-120b` |
+| log says 400 `json_validate_failed`                   | JSON mode was requested but the model could not produce valid JSON in the token budget — raise `Max_Tokens__c` (400 works for `openai/gpt-oss-120b`)                                                                                                                                                                                                                                             |
+| nothing happens at all                                | `Is_Enabled__c` is still false                                                                                                                                                                                                                                                                                                                                                                   |
+| `AuraHandledException: You do not have permission`    | `RIQ_Generate_AI_Insight` not assigned                                                                                                                                                                                                                                                                                                                                                           |
+| works in one org, not another                         | `RIQ_LLM_API` points at a different base URL, or the config record differs                                                                                                                                                                                                                                                                                                                       |
 
 ---
 
@@ -227,8 +227,8 @@ authentication options — is in [API.md](API.md). The two decisions worth
 repeating here:
 
 - **Idempotency is the `externalId` field.** It is upserted onto
-  `RIQ_Health_Signal__c.RIQ_External_Key__c`, which is an *external id* and
-  *unique*. Re-sending the same batch updates the same rows; it never
+  `RIQ_Health_Signal__c.RIQ_External_Key__c`, which is an _external id_ and
+  _unique_. Re-sending the same batch updates the same rows; it never
   duplicates them.
 - **Partial success is HTTP 200 with per-row results.** Apex REST cannot return
   207, and failing the whole batch because one row was bad would force the
@@ -246,7 +246,7 @@ Everything described above is covered by Apex tests that use `HttpCalloutMock`
 and `Test.setMock`:
 
 - `RIQ_AiInsightService_Test` — success, 400, 401, 429, 500, timeout, malformed
-  JSON, fenced JSON, empty content, OpenAI shape, disabled toggle (asserts *no*
+  JSON, fenced JSON, empty content, OpenAI shape, disabled toggle (asserts _no_
   callout), prompt privacy, parse hardening.
 - `RIQ_AiInsightQueueable_Test` — batch cap and chaining, disabled toggle writes
   nothing, one failing account does not block the rest, large batch.

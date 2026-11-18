@@ -17,6 +17,8 @@ public with sharing class RIQ_AccountHealthController {
     private static final Integer MAX_SEVERITY = 5;
     /** Guard against a huge Drivers__c payload being re-serialised to the client. */
     private static final Integer MAX_DRIVERS = 5;
+    /** Signal notes are free text; the field is 5000 characters, so refuse more. */
+    private static final Integer MAX_NOTES_LENGTH = 5000;
 
     /** One scoring driver, parsed from RIQ_Score_History__c.Drivers__c. */
     public class Driver {
@@ -244,6 +246,12 @@ public with sharing class RIQ_AccountHealthController {
             throw userError('"' + signalType + '" is not a known signal type.');
         }
 
+        if (notes != null && notes.length() > MAX_NOTES_LENGTH) {
+            throw userError(
+                'The notes are too long. Shorten them to ' + MAX_NOTES_LENGTH + ' characters or fewer.'
+            );
+        }
+
         try {
             if (new RIQ_AccountSelector().getForHealthCards(new Set<Id>{ accountId }).isEmpty()) {
                 throw userError('That account does not exist, or you do not have access to it.');
@@ -262,7 +270,7 @@ public with sharing class RIQ_AccountHealthController {
         } catch (AuraHandledException friendly) {
             throw friendly;
         } catch (DmlException dmlFailure) {
-            System.debug(LoggingLevel.ERROR, 'RenewalIQ: signal insert failed - ' + dmlFailure.getMessage());
+            RIQ_Logger.error('RIQ_AccountHealthController', 'Signal insert failed.', dmlFailure, accountId);
             throw userError('The signal could not be saved. Check the values and try again.');
         } catch (Exception failure) {
             throw handleFailure(failure, 'log the signal');
@@ -350,7 +358,7 @@ public with sharing class RIQ_AccountHealthController {
             Object parsed = JSON.deserializeUntyped(driversJson);
 
             if (!(parsed instanceof List<Object>)) {
-                System.debug(LoggingLevel.WARN, 'RenewalIQ: drivers JSON is not an array.');
+                System.debug(LoggingLevel.WARN, 'RenewalIQ: drivers JSON is not an array.'); // NOPMD cacheable read path cannot publish
                 return drivers;
             }
 
@@ -373,7 +381,7 @@ public with sharing class RIQ_AccountHealthController {
                 drivers.add(driver);
             }
         } catch (Exception parseFailure) {
-            System.debug(LoggingLevel.WARN, 'RenewalIQ: unreadable drivers JSON - ' + parseFailure.getMessage());
+            System.debug(LoggingLevel.WARN, 'RenewalIQ: unreadable drivers JSON.'); // NOPMD cacheable read path cannot publish
             return new List<Driver>();
         }
 
@@ -466,10 +474,9 @@ public with sharing class RIQ_AccountHealthController {
      * @return A friendly exception carrying a support-safe message.
      */
     private static AuraHandledException handleFailure(Exception failure, String action) {
-        System.debug(
-            LoggingLevel.ERROR,
-            'RenewalIQ health card: could not ' + action + ' - ' + failure.getMessage() + '\n' + failure.getStackTraceString()
-        );
+        // The user gets a friendly sentence; the administrator gets the stack in
+        // RIQ_Log__c. Raw exception text never reaches the client.
+        RIQ_Logger.error('RIQ_AccountHealthController', 'Could not ' + action + '.', failure);
         return userError('RenewalIQ could not ' + action + '. Please try again, or contact your Salesforce administrator.');
     }
 

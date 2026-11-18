@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description
+  >Carries one RenewalIQ log line from a transaction to RIQ_Log__c. Publish Immediately on purpose: a log written while a transaction is failing must not be rolled back with it. Consumed by RIQ_LogEventTrigger.</description>
+    <eventType>HighVolume</eventType>
+    <label>RenewalIQ Log Event</label>
+    <pluralLabel>RenewalIQ Log Events</pluralLabel>
+    <publishBehavior>PublishImmediately</publishBehavior>
+</CustomObject>

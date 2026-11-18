@@ -19,19 +19,19 @@ without a deployment.
 
 ## Architecture at a glance
 
-| Layer            | Responsibility                                    | Example                                       |
-| ---------------- | ------------------------------------------------- | --------------------------------------------- |
-| Trigger          | One per object, delegation only                   | `RIQ_HealthSignalTrigger`                     |
-| Handler / Domain | Trigger context routing, record-level validation  | `RIQ_HealthSignalTriggerHandler`              |
-| Selector         | All SOQL for an SObject, `USER_MODE` by default   | `RIQ_HealthSignalSelector`                    |
-| Service          | Business logic, bulk-safe, transaction boundaries | `RIQ_HealthScoreService`                      |
-| Async            | Off-transaction work                              | `RIQ_HealthScoreRecalculator` (Queueable)     |
-| Batch / Cron     | Whole-book recalculation, time-decayed scores     | `RIQ_NightlyScoreBatch`, `RIQ_NightlyScoreScheduler` |
-| Domain event     | "This account's band moved", after commit         | `RIQ_Health_Status_Change__e`                 |
-| Subscriber       | Turns an event into work, idempotently            | `RIQ_PlaybookService`                         |
-| Declarative      | Notification + feed post, admin-editable          | `RIQ_Account_Critical_Alert` (Flow)           |
+| Layer            | Responsibility                                    | Example                                                                |
+| ---------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| Trigger          | One per object, delegation only                   | `RIQ_HealthSignalTrigger`                                              |
+| Handler / Domain | Trigger context routing, record-level validation  | `RIQ_HealthSignalTriggerHandler`                                       |
+| Selector         | All SOQL for an SObject, `USER_MODE` by default   | `RIQ_HealthSignalSelector`                                             |
+| Service          | Business logic, bulk-safe, transaction boundaries | `RIQ_HealthScoreService`                                               |
+| Async            | Off-transaction work                              | `RIQ_HealthScoreRecalculator` (Queueable)                              |
+| Batch / Cron     | Whole-book recalculation, time-decayed scores     | `RIQ_NightlyScoreBatch`, `RIQ_NightlyScoreScheduler`                   |
+| Domain event     | "This account's band moved", after commit         | `RIQ_Health_Status_Change__e`                                          |
+| Subscriber       | Turns an event into work, idempotently            | `RIQ_PlaybookService`                                                  |
+| Declarative      | Notification + feed post, admin-editable          | `RIQ_Account_Critical_Alert` (Flow)                                    |
 | Config           | Thresholds and weights, no hardcoded numbers      | `RIQ_Scoring_Rule__mdt`, `RIQ_Threshold__mdt`, `RIQ_Batch_Config__mdt` |
-| UI               | LWC command center + record components            | `riqCommandCenter`, `riqHealthScoreCard`, `riqSignalLogger` |
+| UI               | LWC command center + record components            | `riqCommandCenter`, `riqHealthScoreCard`, `riqSignalLogger`            |
 
 ### How the score is calculated
 
@@ -84,7 +84,7 @@ transitions. The Queueable is a three-line wrapper, so "the nightly number" and
 rolled-back score never produces a task. It is published only when the band
 changes.
 
-**Decision: `null → status` publishes nothing.** A first score is a *baseline*,
+**Decision: `null → status` publishes nothing.** A first score is a _baseline_,
 not a transition. Otherwise the first nightly run after a data load would fire one
 playbook per account and bury CSMs in executive-outreach tasks for customers
 nobody has judged yet. The baseline is still recorded in `RIQ_Score_History__c`;
@@ -154,14 +154,14 @@ riqUtils           (utility module) pure formatting + SVG geometry, unit tested 
 Two Apex controllers sit behind them, and all three components go through them rather
 than through their own SOQL:
 
-| Method | Cacheable | Why |
-| ------ | --------- | --- |
-| `RIQ_DashboardController.getKpis(ownerId, renewalWindowDays)` | yes | Pure read; the tile totals. |
-| `RIQ_DashboardController.getStatusDistribution(ownerId)` | yes | Pure read; one `GROUP BY` count, one row per band. |
-| `RIQ_DashboardController.getAtRiskAccounts(filters)` | yes | Pure read; server-side filter, sort and row cap. |
-| `RIQ_AccountHealthController.getHealthCard(accountId)` | yes | Pure read; wired on the record page. |
-| `RIQ_AccountHealthController.recalculate(accountId)` | **no** | It writes scores, history and possibly an event. |
-| `RIQ_AccountHealthController.logSignal(...)` | **no** | It inserts a signal. |
+| Method                                                        | Cacheable | Why                                                |
+| ------------------------------------------------------------- | --------- | -------------------------------------------------- |
+| `RIQ_DashboardController.getKpis(ownerId, renewalWindowDays)` | yes       | Pure read; the tile totals.                        |
+| `RIQ_DashboardController.getStatusDistribution(ownerId)`      | yes       | Pure read; one `GROUP BY` count, one row per band. |
+| `RIQ_DashboardController.getAtRiskAccounts(filters)`          | yes       | Pure read; server-side filter, sort and row cap.   |
+| `RIQ_AccountHealthController.getHealthCard(accountId)`        | yes       | Pure read; wired on the record page.               |
+| `RIQ_AccountHealthController.recalculate(accountId)`          | **no**    | It writes scores, history and possibly an event.   |
+| `RIQ_AccountHealthController.logSignal(...)`                  | **no**    | It inserts a signal.                               |
 
 ### Aggregation belongs in the database
 
@@ -270,11 +270,11 @@ rendered the way an Indian customer success team reads it. That is a formatting
 concern, not a storage one: money stays a Salesforce Currency field (INR), and the
 display rules live in two small, tested places.
 
-| Layer | Helper | Rule |
-| ----- | ------ | ---- |
-| LWC | `riqUtils.formatInr(value)` | `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })` — `₹12,50,000` |
-| LWC | `riqUtils.formatInrCompact(value)` | below ₹1 L the full amount, ₹1 L to under ₹1 Cr as `12.5 L`, ₹1 Cr and above as `4.25 Cr` |
-| Apex | `RIQ_CurrencyFormatter.formatInr / formatInrCompact` | the same rules, hand-written because **Apex has no `Intl`** |
+| Layer | Helper                                               | Rule                                                                                      |
+| ----- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| LWC   | `riqUtils.formatInr(value)`                          | `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })` — `₹12,50,000`       |
+| LWC   | `riqUtils.formatInrCompact(value)`                   | below ₹1 L the full amount, ₹1 L to under ₹1 Cr as `12.5 L`, ₹1 Cr and above as `4.25 Cr` |
+| Apex  | `RIQ_CurrencyFormatter.formatInr / formatInrCompact` | the same rules, hand-written because **Apex has no `Intl`**                               |
 
 The compaction truncates instead of rounding up, so ₹99,99,999 shows as `₹99.9 L` and
 never as a crore that does not exist. KPI tiles show the compact form with the exact
@@ -293,16 +293,49 @@ healthcare, retail, IT services and D2C, in eight cities, with ARR from ₹5 L t
 engine the nightly batch uses, so the Health / Watch / At Risk / Critical split is
 produced by the model, not asserted by the fixture.
 
+## Security, logging and quality (Phase 6)
+
+The app is a portfolio project, but it is built as if a stolen token were the
+threat: every mutation checks a Custom Permission on the server, every read runs
+in `USER_MODE`, and the browser is never trusted to decide anything. The full
+model — access modes and why each one is used, the findings table, the permission
+matrix, the persona audit and the accepted static-analysis suppressions — is in
+**[docs/SECURITY.md](docs/SECURITY.md)**.
+
+Three pieces are worth calling out here.
+
+**Logs that survive the failure.** `RIQ_Logger` publishes `RIQ_Log_Event__e`, a
+platform event defined with _Publish Immediately_, and a subscriber trigger writes
+`RIQ_Log__c` in its own transaction. A line logged inside a transaction that then
+rolls back is still stored — which is the only kind of log that matters when
+something breaks. Payloads are redacted (provider keys, bearer tokens, email
+addresses, phone numbers) and capped at 255 characters, the platform-event text
+limit. Retention is 30 days by default, configurable in `RIQ Batch Config`, and
+enforced nightly by `RIQ_LogCleanupBatch`.
+
+**Static analysis that gates the build.** PMD runs through Salesforce Code
+Analyzer v5 with `config/pmd-ruleset.xml` covering the security, performance and
+error-prone categories. Current result: **0 violations**. Every suppression is an
+inline `// NOPMD` with a reason, listed in `docs/SECURITY.md`. Running it found two
+real defects — a SOQL query and a DML inside a loop, and eight id literals in
+tests.
+
+**Measured performance, not claimed.** 200 accounts with 3 000 signals score in
+one chunk with **4 SOQL statements, 2 DML statements and 1 642 ms of CPU**, against
+budgets of 10 / 4 / 10 000 in `RIQ_Performance_Test`. The assertion is an order of
+magnitude below the platform limit, so a regression fails the suite instead of
+half-scoring a book of business in production.
+
 ## Flow vs Apex vs Platform Events vs Batch: when to use what
 
-| Tool | Use it when | Not for | In RenewalIQ |
-| ---- | ----------- | ------- | ------------ |
-| **Record-triggered Flow** | The rule is simple, declarative, and an admin should be able to change it without a deployment: notifications, feed posts, field defaults, simple field updates. No loops over related records, no external callouts. | Bulk logic over related records, anything needing a test harness or a transaction boundary, anything that must be idempotent across retries. | `RIQ_Account_Critical_Alert` — bell notification to the manager + Chatter post. |
-| **Apex trigger + handler** | Durable business rules on the same object, bulk data, cross-object logic that must be correct for 200 records at once, anything with tests and coverage. | Sending notifications nobody can tune; anything an admin will want to change weekly. | `RIQ_HealthSignalTrigger` (queue a recalculation), `RIQ_HealthStatusChangeTrigger` (run the playbook). |
-| **Platform Event** | The producer should not know the consumers: one fact, many independent reactions, and the work must happen **after commit** so a rollback leaves no orphan task. Also the seam for external systems. | Request/response, ordered state changes, anything needing a guaranteed exactly-once semantic (events are at-least-once — design for idempotency). | `RIQ_Health_Status_Change__e` published by the scorer; consumed by the playbook. |
-| **Batch Apex** | Whole-dataset work that must be chunked: nightly recalculation, data migration, anything that would blow synchronous limits. | A single record's immediate reaction — that is a trigger or a Queueable. | `RIQ_NightlyScoreBatch`, because scores decay with time even when nothing is edited. |
-| **Queueable** | One transaction's follow-on work: move it off the user's request, keep a retry boundary, chain the next step. | Huge volumes (use Batch) or a fixed clock (use Schedulable + Batch). | `RIQ_HealthScoreRecalculator` — off-transaction re-score after a signal. |
-| **Schedulable** | "Every night at 2 AM" — the clock itself. Keep it thin: it should only launch the batch. | Business logic (unbatchable, no scope, hard to test). | `RIQ_NightlyScoreScheduler.scheduleNightly()`. |
+| Tool                       | Use it when                                                                                                                                                                                                           | Not for                                                                                                                                           | In RenewalIQ                                                                                           |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Record-triggered Flow**  | The rule is simple, declarative, and an admin should be able to change it without a deployment: notifications, feed posts, field defaults, simple field updates. No loops over related records, no external callouts. | Bulk logic over related records, anything needing a test harness or a transaction boundary, anything that must be idempotent across retries.      | `RIQ_Account_Critical_Alert` — bell notification to the manager + Chatter post.                        |
+| **Apex trigger + handler** | Durable business rules on the same object, bulk data, cross-object logic that must be correct for 200 records at once, anything with tests and coverage.                                                              | Sending notifications nobody can tune; anything an admin will want to change weekly.                                                              | `RIQ_HealthSignalTrigger` (queue a recalculation), `RIQ_HealthStatusChangeTrigger` (run the playbook). |
+| **Platform Event**         | The producer should not know the consumers: one fact, many independent reactions, and the work must happen **after commit** so a rollback leaves no orphan task. Also the seam for external systems.                  | Request/response, ordered state changes, anything needing a guaranteed exactly-once semantic (events are at-least-once — design for idempotency). | `RIQ_Health_Status_Change__e` published by the scorer; consumed by the playbook.                       |
+| **Batch Apex**             | Whole-dataset work that must be chunked: nightly recalculation, data migration, anything that would blow synchronous limits.                                                                                          | A single record's immediate reaction — that is a trigger or a Queueable.                                                                          | `RIQ_NightlyScoreBatch`, because scores decay with time even when nothing is edited.                   |
+| **Queueable**              | One transaction's follow-on work: move it off the user's request, keep a retry boundary, chain the next step.                                                                                                         | Huge volumes (use Batch) or a fixed clock (use Schedulable + Batch).                                                                              | `RIQ_HealthScoreRecalculator` — off-transaction re-score after a signal.                               |
+| **Schedulable**            | "Every night at 2 AM" — the clock itself. Keep it thin: it should only launch the batch.                                                                                                                              | Business logic (unbatchable, no scope, hard to test).                                                                                             | `RIQ_NightlyScoreScheduler.scheduleNightly()`.                                                         |
 
 Rule of thumb: **Flow for policy, Apex for rules, events for decoupling, batch for
 volume, Queueable for latency, Schedulable for the clock.**
@@ -314,14 +347,14 @@ scoring-rule contract.
 
 ## Roadmap
 
-| Phase | Scope                                                    | Status |
-| ----- | -------------------------------------------------------- | ------ |
-| 1     | Project scaffold, data model, permission sets, seed data | ✅     |
-| 2     | Health scoring engine + score history                    | ✅     |
-| 3     | Nightly batch, platform events, playbook automation      | ✅     |
-| 4     | LWC dashboard + Jest tests                               | ✅     |
+| Phase | Scope                                                            | Status |
+| ----- | ---------------------------------------------------------------- | ------ |
+| 1     | Project scaffold, data model, permission sets, seed data         | ✅     |
+| 2     | Health scoring engine + score history                            | ✅     |
+| 3     | Nightly batch, platform events, playbook automation              | ✅     |
+| 4     | LWC dashboard + Jest tests                                       | ✅     |
 | 5     | LLM callout (Named/External Credential), inbound signal REST API | ✅     |
-| 6     | Security review: sharing, CRUD/FLS, injection, secret handling | ⬜     |
+| 6     | Security review: sharing, CRUD/FLS, injection, secret handling   | ⬜     |
 
 ## Prerequisites
 
@@ -353,6 +386,11 @@ sf apex run test --target-org RenewalIQ --code-coverage --result-format human --
 npm run lint
 npm run prettier
 npm run test:unit
+
+# Static analysis (needs a JDK; this machine uses Android Studio's bundled one)
+export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
+sf code-analyzer run --config-file config/code-analyzer.yml \
+    --workspace . --rule-selector pmd:RenewalIQApex --view table
 ```
 
 `npm run prettier` formats Apex and XML through `prettier-plugin-apex` and
@@ -390,4 +428,5 @@ docs/               Interview notes and data model reference
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) — LLM callout setup (credential, toggle, provider switch, troubleshooting)
 - [docs/API.md](docs/API.md) — inbound signal API: auth, payload, responses, idempotency, security
 - [docs/INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md) — design decisions per phase
+- [docs/SECURITY.md](docs/SECURITY.md) — security model, permission matrix, findings, logging, static analysis, measured performance
 - [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) — screenshot checklist for the portfolio write-up

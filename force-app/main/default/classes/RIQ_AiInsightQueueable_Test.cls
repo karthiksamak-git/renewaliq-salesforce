@@ -174,7 +174,7 @@ private class RIQ_AiInsightQueueable_Test {
 
         Test.startTest();
         job.generateFor(new List<Id>());
-        job.generateFor(new List<Id>{ '001000000000001AAA' });
+        job.generateFor(new List<Id>{ RIQ_TestDataFactory.nonExistentAccountId() });
         Test.stopTest();
 
         System.assert(true, 'Neither a missing batch nor an unknown account may throw.');

@@ -42,8 +42,8 @@ public class RIQ_AiInsightQueueable implements Queueable, Database.AllowsCallout
         if (!config.isEnabled) {
             // Respect the toggle in the background: generating rule-based text
             // for every at-risk account on every status change is noise. The
-            // manual button still works, because the user asked for it.
-            System.debug(LoggingLevel.INFO, 'RenewalIQ AI: disabled, skipping background insight generation.');
+            // manual button still works, because the user asked for it. Nothing
+            // is logged: a disabled feature is not an incident.
             return;
         }
 
@@ -58,7 +58,7 @@ public class RIQ_AiInsightQueueable implements Queueable, Database.AllowsCallout
             } catch (Exception chainFailure) {
                 // A refused chain only defers the rest: the next status change or
                 // the next nightly run picks them up. It must not fail this job.
-                System.debug(LoggingLevel.WARN, 'RenewalIQ AI: could not chain the rest - ' + chainFailure.getMessage());
+                RIQ_Logger.warn('RIQ_AiInsightQueueable', 'Could not chain the remaining insight jobs.', chainFailure);
             }
         }
     }
@@ -142,14 +142,14 @@ public class RIQ_AiInsightQueueable implements Queueable, Database.AllowsCallout
                 );
             } catch (Exception failure) {
                 // One bad account must not cost the rest of the job.
-                System.debug(LoggingLevel.ERROR, 'RenewalIQ AI: account ' + account.Id + ' failed - ' + failure.getMessage());
+                RIQ_Logger.error('RIQ_AiInsightQueueable', 'Insight generation failed for one account.', failure, account.Id);
             }
         }
 
         try {
             Database.update(updates, AccessLevel.SYSTEM_MODE);
         } catch (DmlException dmlFailure) {
-            System.debug(LoggingLevel.ERROR, 'RenewalIQ AI: insight update failed - ' + dmlFailure.getMessage());
+            RIQ_Logger.error('RIQ_AiInsightQueueable', 'Insight update failed.', dmlFailure);
         }
     }
 

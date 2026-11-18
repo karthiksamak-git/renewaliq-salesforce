@@ -418,10 +418,7 @@ public with sharing class RIQ_DashboardController {
      * @return A friendly exception carrying a support-safe message.
      */
     private static AuraHandledException handleFailure(Exception failure, String action) {
-        System.debug(
-            LoggingLevel.ERROR,
-            'RenewalIQ dashboard: could not ' + action + ' - ' + failure.getMessage() + '\n' + failure.getStackTraceString()
-        );
+        RIQ_Logger.error('RIQ_DashboardController', 'Could not ' + action + '.', failure);
         return userError(
             'RenewalIQ could not ' +
                 action +

@@ -61,11 +61,8 @@ public with sharing class RIQ_HealthSignalTriggerHandler extends RIQ_TriggerHand
         if (Limits.getQueueableJobs() >= Limits.getLimitQueueableJobs()) {
             // Nothing safe left to do inline. RIQ_NightlyScoreBatch re-scores
             // the whole book every night, so the data self-heals instead of
-            // silently rotting.
-            System.debug(
-                LoggingLevel.WARN,
-                'RenewalIQ: queueable limit reached, skipped score recalculation for ' + accountIds.size() + ' account(s).'
-            );
+            // silently rotting - but a skip is never silent.
+            RIQ_Logger.warn('RIQ_HealthSignalTriggerHandler', 'Queueable limit reached, skipped ' + accountIds.size() + ' account(s).');
             return;
         }
 

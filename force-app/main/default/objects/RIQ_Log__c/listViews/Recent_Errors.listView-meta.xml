@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Recent_Errors</fullName>
+    <columns>NAME</columns>
+    <columns>LEVEL__c</columns>
+    <columns>SOURCE__c</columns>
+    <columns>MESSAGE__c</columns>
+    <columns>RELATED_ID__c</columns>
+    <columns>LOGGED_AT__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>LEVEL__c</field>
+        <operation>equals</operation>
+        <value>Error</value>
+    </filters>
+    <label>Recent errors</label>
+</ListView>

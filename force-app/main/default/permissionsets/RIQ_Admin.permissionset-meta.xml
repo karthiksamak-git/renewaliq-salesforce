@@ -9,6 +9,10 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>RIQ_LogCleanupBatch</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>RIQ_DashboardController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -130,6 +134,31 @@
         <field>RIQ_Health_Signal__c.RIQ_External_Key__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RIQ_Log__c.Source__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RIQ_Log__c.Message__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RIQ_Log__c.Stack_Trace__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RIQ_Log__c.Related_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RIQ_Log__c.Logged_At__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <hasActivationRequired>false</hasActivationRequired>
     <label>RIQ Admin</label>
     <objectPermissions>
@@ -184,6 +213,15 @@
         <object>RIQ_Score_History__c</object>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
+    <objectPermissions>
+        <allowCreate>false</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>false</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>RIQ_Log__c</object>
+        <viewAllRecords>false</viewAllRecords>
+    </objectPermissions>
     <tabSettings>
         <tab>RIQ_Health_Signal__c</tab>
         <visibility>Visible</visibility>
@@ -194,6 +232,10 @@
     </tabSettings>
     <tabSettings>
         <tab>RIQ_Command_Center</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>RIQ_Log__c</tab>
         <visibility>Visible</visibility>
     </tabSettings>
 </PermissionSet>

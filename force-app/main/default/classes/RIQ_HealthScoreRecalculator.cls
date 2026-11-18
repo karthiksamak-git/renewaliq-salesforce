@@ -65,7 +65,7 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
         if (rules.isEmpty()) {
             // Scoring with no rules would set every account to 100, which is
             // worse than leaving the previous score in place.
-            System.debug(LoggingLevel.ERROR, 'RenewalIQ: no active scoring rules found, skipping recalculation.');
+            RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'No active scoring rules were found, so recalculation was skipped.');
             return result;
         }
 
@@ -202,10 +202,7 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
         for (Database.SaveResult saveResult : results) {
             if (!saveResult.isSuccess()) {
                 failures++;
-                System.debug(
-                    LoggingLevel.ERROR,
-                    'RenewalIQ: could not publish health status change event - ' + saveResult.getErrors()
-                );
+                RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'Could not publish a health status change event: ' + saveResult.getErrors());
             }
         }
 
@@ -249,7 +246,7 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             if (result.isSuccess()) {
                 saved++;
             } else {
-                System.debug(LoggingLevel.ERROR, 'RenewalIQ: could not update score for ' + result.getId() + ' - ' + result.getErrors());
+                RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'Could not update a score.', null, String.valueOf(result.getId()));
             }
         }
 
@@ -274,7 +271,7 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             if (result.isSuccess()) {
                 saved++;
             } else {
-                System.debug(LoggingLevel.ERROR, 'RenewalIQ: could not write score history - ' + result.getErrors());
+                RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'Could not write score history.', null, String.valueOf(result.getId()));
             }
         }
 

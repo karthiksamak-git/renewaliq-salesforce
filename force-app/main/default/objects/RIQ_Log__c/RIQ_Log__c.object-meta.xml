@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowInChatterGroups>false</allowInChatterGroups>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description
+  >Durable operational log for RenewalIQ. Written by RIQ_Logger through RIQ_Log_Event__e, which is published immediately so a line survives a rolled-back transaction. Never contains API keys, tokens, email addresses, phone numbers or signal notes: RIQ_Logger redacts them first. Retention is enforced by RIQ_LogCleanupBatch.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>false</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>false</enableSearch>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>RenewalIQ Log</label>
+    <nameField>
+        <displayFormat>RIQ-LOG-{000000}</displayFormat>
+        <label>Log Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>RenewalIQ Logs</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

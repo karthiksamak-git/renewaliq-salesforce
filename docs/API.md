@@ -58,15 +58,15 @@ access.
 A JSON **array** of up to **200** signal objects. An object, a string or a
 number is a 400.
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `externalId` | string, ≤ 120 chars | yes | Idempotency key. Unique across all signals, stable across retries. |
-| `accountId` | string (18-char id) | one of the two | Salesforce Account id. |
-| `accountExternalId` | string, ≤ 40 chars | one of the two | `Account.AccountNumber`, for callers that only know their own key. |
-| `signalType` | string | yes | Must be a value of `RIQ_Health_Signal__c.Signal_Type__c`: `Support Escalation`, `Low Product Usage`, `Missed QBR`, `Executive Sponsor Left`, `Late Payment`, `NPS Detractor`, … |
-| `severity` | integer 1–5 | yes | 5 is most severe. Values outside the range are rejected. |
-| `occurredOn` | `yyyy-MM-dd` | yes | Today or earlier; a future date is rejected rather than silently clamped. |
-| `notes` | string, ≤ 5000 chars | no | Free text stored on the signal. |
+| Field               | Type                 | Required       | Notes                                                                                                                                                                           |
+| ------------------- | -------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `externalId`        | string, ≤ 120 chars  | yes            | Idempotency key. Unique across all signals, stable across retries.                                                                                                              |
+| `accountId`         | string (18-char id)  | one of the two | Salesforce Account id.                                                                                                                                                          |
+| `accountExternalId` | string, ≤ 40 chars   | one of the two | `Account.AccountNumber`, for callers that only know their own key.                                                                                                              |
+| `signalType`        | string               | yes            | Must be a value of `RIQ_Health_Signal__c.Signal_Type__c`: `Support Escalation`, `Low Product Usage`, `Missed QBR`, `Executive Sponsor Left`, `Late Payment`, `NPS Detractor`, … |
+| `severity`          | integer 1–5          | yes            | 5 is most severe. Values outside the range are rejected.                                                                                                                        |
+| `occurredOn`        | `yyyy-MM-dd`         | yes            | Today or earlier; a future date is rejected rather than silently clamped.                                                                                                       |
+| `notes`             | string, ≤ 5000 chars | no             | Free text stored on the signal.                                                                                                                                                 |
 
 ```bash
 curl -s -X POST "https://your-domain.my.salesforce.com/services/apexrest/riq/v1/signals" \
@@ -126,13 +126,13 @@ once in this payload and this is not the last occurrence) or `error`.
 
 ### Status codes
 
-| Code | Meaning |
-| --- | --- |
-| 200 | Body parsed and every row was attempted. Read `results` for per-row outcomes. |
-| 400 | The body was empty, was not a JSON array, or was not valid JSON. Nothing was written. |
-| 413 | More than 200 items. Nothing was written; split the batch. |
-| 401 / 403 | Missing, expired or under-privileged token. |
-| 405 | The endpoint accepts `POST` only. |
+| Code      | Meaning                                                                               |
+| --------- | ------------------------------------------------------------------------------------- |
+| 200       | Body parsed and every row was attempted. Read `results` for per-row outcomes.         |
+| 400       | The body was empty, was not a JSON array, or was not valid JSON. Nothing was written. |
+| 413       | More than 200 items. Nothing was written; split the batch.                            |
+| 401 / 403 | Missing, expired or under-privileged token.                                           |
+| 405       | The endpoint accepts `POST` only.                                                     |
 
 There is no 207: Apex REST cannot return it, and inventing a body-level failure
 for "some rows worked" would make the caller's retry overwrite the good rows.

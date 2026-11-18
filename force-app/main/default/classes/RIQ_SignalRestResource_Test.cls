@@ -171,7 +171,7 @@ private class RIQ_SignalRestResource_Test {
             item('ext-good-1', account.Id, SIGNAL_TYPE, String.valueOf(Date.today())),
             item('ext-bad-type', account.Id, 'Not A Real Type', String.valueOf(Date.today())),
             item('ext-bad-date', account.Id, SIGNAL_TYPE, future),
-            item('ext-bad-account', '001000000000001AAA', SIGNAL_TYPE, String.valueOf(Date.today())),
+            item('ext-bad-account', String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()), SIGNAL_TYPE, String.valueOf(Date.today())),
             new Map<String, Object>{ 'accountId' => account.Id, 'signalType' => SIGNAL_TYPE, 'severity' => 3 },
             item('ext-bad-severity', account.Id, SIGNAL_TYPE, String.valueOf(Date.today()))
         };
@@ -226,7 +226,7 @@ private class RIQ_SignalRestResource_Test {
 
         List<Object> tooMany = new List<Object>();
         for (Integer i = 0; i <= RIQ_SignalRestResource.MAX_SIGNALS; i++) {
-            tooMany.add(item('ext-over-' + i, '001000000000001AAA', SIGNAL_TYPE, String.valueOf(Date.today())));
+            tooMany.add(item('ext-over-' + i, String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()), SIGNAL_TYPE, String.valueOf(Date.today())));
         }
 
         RestResponse oversized = post(JSON.serialize(tooMany));

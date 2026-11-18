@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RenewalIQ PMD ruleset for Apex.
+
+  Whole categories rather than a hand-picked list, for three reasons:
+  1. A curated list rots: the rules somebody thought of in phase 6 are not the
+     rules that catch the bug in phase 9.
+  2. Named single rules are brittle across PMD upgrades; category files are the
+     stable surface.
+  3. Security, performance and error-prone are the three families where a
+     violation is a defect rather than a taste argument, which is why those are
+     the three that gate the build. Design and documentation rules are useful
+     advice and are deliberately not enforced.
+
+  The command that runs it is in config/code-analyzer.yml and in
+  docs/SECURITY.md, because a rule file cannot carry double hyphens in a comment.
+
+  Any rule suppressed in the source carries an inline reason; see
+  docs/SECURITY.md for the list of accepted suppressions.
+-->
+<ruleset
+  name="RenewalIQ Apex"
+  xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd"
+>
+  <description>RenewalIQ Apex checks: security, performance and error-prone.</description>
+
+  <rule ref="category/apex/security.xml" />
+  <rule ref="category/apex/performance.xml" />
+  <rule ref="category/apex/errorprone.xml" />
+</ruleset>

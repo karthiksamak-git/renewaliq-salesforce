@@ -116,24 +116,27 @@ public virtual class RIQ_TriggerHandler {
         return isBypassed(handlerName);
     }
 
-    protected virtual void beforeInsert() {
+    // NOPMD EmptyStatementBlock: these seven hooks are the extension points, and
+    // an empty default is what makes a handler opt into exactly the events it
+    // needs instead of being forced to implement all seven.
+    protected virtual void beforeInsert() { // NOPMD intentional empty extension point
     }
 
-    protected virtual void beforeUpdate() {
+    protected virtual void beforeUpdate() { // NOPMD intentional empty extension point
     }
 
-    protected virtual void beforeDelete() {
+    protected virtual void beforeDelete() { // NOPMD intentional empty extension point
     }
 
-    protected virtual void afterInsert() {
+    protected virtual void afterInsert() { // NOPMD intentional empty extension point
     }
 
-    protected virtual void afterUpdate() {
+    protected virtual void afterUpdate() { // NOPMD intentional empty extension point
     }
 
-    protected virtual void afterDelete() {
+    protected virtual void afterDelete() { // NOPMD intentional empty extension point
     }
 
-    protected virtual void afterUndelete() {
+    protected virtual void afterUndelete() { // NOPMD intentional empty extension point
     }
 }
