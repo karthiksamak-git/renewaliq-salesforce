@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Log_Retention_Days__c</fullName>
     <defaultValue>30</defaultValue>
-    <description>Days of RenewalIQ log history to keep. RIQ_LogCleanupBatch deletes anything older. One day is the floor.</description>
+    <description
+  >Days of RenewalIQ log history to keep. RIQ_LogCleanupBatch deletes anything older. One day is the floor.</description>
     <externalId>false</externalId>
     <label>Log Retention Days</label>
     <precision>18</precision>

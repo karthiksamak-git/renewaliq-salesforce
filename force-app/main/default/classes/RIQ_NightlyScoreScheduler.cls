@@ -37,9 +37,10 @@ public with sharing class RIQ_NightlyScoreScheduler implements Schedulable {
      * working schedule even if an old job has already finished.
      */
     private static void abortExistingJobs() {
-        // NOPMD ApexCRUDViolation: CronTrigger is read-only system metadata with
-        // no object or field permissions to check, and this class only ever
-        // removes its own job name.
+        // ApexCRUDViolation: CronTrigger is read-only system metadata with no object
+        // or field permissions to check, and this class only ever removes its own
+        // job name. The NOPMD must sit on the reported line, so prettier skips it.
+        // prettier-ignore
         List<CronTrigger> existingJobs = [ // NOPMD CronTrigger is system metadata with no FLS
             SELECT Id
             FROM CronTrigger
@@ -49,7 +50,9 @@ public with sharing class RIQ_NightlyScoreScheduler implements Schedulable {
         for (CronTrigger job : existingJobs) {
             try {
                 System.abortJob(job.Id);
-            } catch (Exception abortFailure) { RIQ_Logger.warn('RIQ_NightlyScoreScheduler', 'Could not abort a previous job.', abortFailure); }
+            } catch (Exception abortFailure) {
+                RIQ_Logger.warn('RIQ_NightlyScoreScheduler', 'Could not abort a previous job.', abortFailure);
+            }
         }
     }
 }

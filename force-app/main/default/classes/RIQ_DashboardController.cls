@@ -237,15 +237,18 @@ public with sharing class RIQ_DashboardController {
         String orderByField = SORT_FIELDS.containsKey(sortBy) ? SORT_FIELDS.get(sortBy) : 'RIQ_Health_Score__c';
         String direction = 'ASC'.equalsIgnoreCase(sortDirection) ? 'ASC' : 'DESC';
         Integer rowLimit = clampRows(maxRows);
-        Date windowEnd = renewalWindowDays == null || renewalWindowDays <= 0
+        Date windowEnd = renewalWindowDays == null ||
+            renewalWindowDays <= 0
             ? null
             : Date.today().addDays(normaliseWindow(renewalWindowDays));
 
         try {
             List<RiskRow> rows = new List<RiskRow>();
 
-            for (Account account : new RIQ_DashboardSelector()
-                .getRiskAccounts(statuses, ownerId, windowEnd, orderByField, direction, rowLimit)) {
+            for (
+                Account account : new RIQ_DashboardSelector()
+                    .getRiskAccounts(statuses, ownerId, windowEnd, orderByField, direction, rowLimit)
+            ) {
                 RiskRow row = new RiskRow();
                 row.accountId = account.Id;
                 row.name = account.Name;
@@ -282,7 +285,8 @@ public with sharing class RIQ_DashboardController {
     @AuraEnabled(cacheable=true)
     public static Integer getRowCount(String statusFilter, Id ownerId, Integer renewalWindowDays) {
         Set<String> statuses = resolveStatuses(statusFilter);
-        Date windowEnd = renewalWindowDays == null || renewalWindowDays <= 0
+        Date windowEnd = renewalWindowDays == null ||
+            renewalWindowDays <= 0
             ? null
             : Date.today().addDays(normaliseWindow(renewalWindowDays));
 

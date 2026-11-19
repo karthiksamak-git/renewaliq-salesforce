@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # LWC Jest, ESLint, Prettier and the Apex/XML Prettier plugins.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    groups:
+      tooling:
+        patterns:
+          - '*'
+
+  # The workflows pin action major versions; Dependabot keeps the pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore

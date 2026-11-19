@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
     <actionCalls>
         <name>Notify_Manager</name>
@@ -17,7 +17,8 @@
         <inputParameters>
             <name>body</name>
             <value>
-                <stringValue>{!$Record.Name} dropped to Critical with a health score of {!$Record.RIQ_Health_Score__c}. Open the account and review the renewal plan.</stringValue>
+                <stringValue
+        >{!$Record.Name} dropped to Critical with a health score of {!$Record.RIQ_Health_Score__c}. Open the account and review the renewal plan.</stringValue>
             </value>
         </inputParameters>
         <inputParameters>
@@ -97,7 +98,8 @@
             <assignToReference>Skip_Reason</assignToReference>
             <operator>Assign</operator>
             <value>
-                <stringValue>Notification or Chatter post failed - swallowed so the score update still commits.</stringValue>
+                <stringValue
+        >Notification or Chatter post failed - swallowed so the score update still commits.</stringValue>
             </value>
         </assignmentItems>
     </assignments>
@@ -202,7 +204,8 @@
     <textTemplates>
         <name>Chatter_Message</name>
         <isViewedAsPlainText>true</isViewedAsPlainText>
-        <text>RenewalIQ flagged {!$Record.Name} as Critical (health score {!$Record.RIQ_Health_Score__c}, renewal {!$Record.RIQ_Contract_End_Date__c}). An executive outreach task was created for the account owner; the owner's manager is notified when one is set.</text>
+        <text
+    >RenewalIQ flagged {!$Record.Name} as Critical (health score {!$Record.RIQ_Health_Score__c}, renewal {!$Record.RIQ_Contract_End_Date__c}). An executive outreach task was created for the account owner; the owner's manager is notified when one is set.</text>
     </textTemplates>
     <variables>
         <name>Manager_Ids</name>

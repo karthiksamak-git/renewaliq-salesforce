@@ -34,7 +34,11 @@ private class RIQ_HealthSignalTrigger_Test {
             System.assertNotEquals(null, account.RIQ_Last_Scored__c);
         }
 
-        System.assertEquals(200, [SELECT COUNT() FROM RIQ_Score_History__c], 'One history row per account, not per signal.');
+        System.assertEquals(
+            200,
+            [SELECT COUNT() FROM RIQ_Score_History__c],
+            'One history row per account, not per signal.'
+        );
     }
 
     @IsTest
@@ -76,7 +80,11 @@ private class RIQ_HealthSignalTrigger_Test {
         update signal;
         Test.stopTest();
 
-        System.assertEquals(1, [SELECT COUNT() FROM RIQ_Score_History__c], 'No scoring input changed, so no recalculation.');
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM RIQ_Score_History__c],
+            'No scoring input changed, so no recalculation.'
+        );
     }
 
     @IsTest
@@ -153,12 +161,7 @@ private class RIQ_HealthSignalTrigger_Test {
         RIQ_TriggerHandler.bypass('RIQ_HealthSignalTriggerHandler');
 
         Test.startTest();
-        insert RIQ_TestDataFactory.buildSignal(
-            account.Id,
-            RIQ_TestDataFactory.SUPPORT_ESCALATION,
-            5,
-            Date.today()
-        );
+        insert RIQ_TestDataFactory.buildSignal(account.Id, RIQ_TestDataFactory.SUPPORT_ESCALATION, 5, Date.today());
         Test.stopTest();
 
         RIQ_TriggerHandler.clearBypass();

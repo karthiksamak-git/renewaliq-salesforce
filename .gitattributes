@@ -1,0 +1,16 @@
+# A Windows checkout must behave like the Linux CI runner.
+#
+# Without this, git's core.autocrlf setting hands a Windows contributor CRLF files,
+# and Prettier (which expects LF by default) then reports every file as unformatted.
+# A fresh-clone dry run found exactly that: 238 files failing on Windows, none on
+# Linux. Normalising on commit and checkout makes `npm run prettier:verify` mean the
+# same thing on both.
+* text=auto eol=lf
+
+# Binary or opaque assets: never convert these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.resource binary

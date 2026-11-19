@@ -71,26 +71,45 @@ private class RIQ_SecurityModel_Test {
                 RIQ_AccountHealthController.recalculate(account.Id);
                 Assert.fail('A read-only user must not be able to recalculate.');
             } catch (AuraHandledException expected) {
-                Assert.isTrue(expected.getMessage().contains('permission'), 'The refusal must say why: ' + expected.getMessage());
+                Assert.isTrue(
+                    expected.getMessage().contains('permission'),
+                    'The refusal must say why: ' + expected.getMessage()
+                );
             }
 
             try {
-                RIQ_AccountHealthController.logSignal(account.Id, 'Support Escalation', 4, Date.today().addDays(-1), 'note');
+                RIQ_AccountHealthController.logSignal(
+                    account.Id,
+                    'Support Escalation',
+                    4,
+                    Date.today().addDays(-1),
+                    'note'
+                );
                 Assert.fail('A read-only user must not be able to log a signal.');
             } catch (AuraHandledException expected) {
-                Assert.isTrue(expected.getMessage().contains('permission'), 'The refusal must say why: ' + expected.getMessage());
+                Assert.isTrue(
+                    expected.getMessage().contains('permission'),
+                    'The refusal must say why: ' + expected.getMessage()
+                );
             }
 
             try {
                 RIQ_AccountHealthController.generateInsight(account.Id);
                 Assert.fail('A read-only user must not be able to spend a model call.');
             } catch (AuraHandledException expected) {
-                Assert.isTrue(expected.getMessage().contains('permission'), 'The refusal must say why: ' + expected.getMessage());
+                Assert.isTrue(
+                    expected.getMessage().contains('permission'),
+                    'The refusal must say why: ' + expected.getMessage()
+                );
             }
         }
         Test.stopTest();
 
-        Assert.areEqual(0, [SELECT COUNT() FROM RIQ_Health_Signal__c], 'A refused call must not have written a signal.');
+        Assert.areEqual(
+            0,
+            [SELECT COUNT() FROM RIQ_Health_Signal__c],
+            'A refused call must not have written a signal.'
+        );
     }
 
     @IsTest
@@ -249,7 +268,10 @@ private class RIQ_SecurityModel_Test {
                 generated.aiSource,
                 'Without a callout the source must be Rule-based.'
             );
-            Assert.isTrue(String.isNotBlank(generated.aiSummary), 'The rule-based insight must still explain the account.');
+            Assert.isTrue(
+                String.isNotBlank(generated.aiSummary),
+                'The rule-based insight must still explain the account.'
+            );
         }
         Test.stopTest();
     }
@@ -268,7 +290,13 @@ private class RIQ_SecurityModel_Test {
             );
 
             RIQ_AccountHealthController.recalculate(account.Id);
-            RIQ_AccountHealthController.logSignal(account.Id, 'Missed QBR', 3, Date.today().addDays(-3), 'Quarterly review slipped.');
+            RIQ_AccountHealthController.logSignal(
+                account.Id,
+                'Missed QBR',
+                3,
+                Date.today().addDays(-3),
+                'Quarterly review slipped.'
+            );
             RIQ_AccountHealthController.generateInsight(account.Id);
 
             Assert.areEqual(1, [SELECT COUNT() FROM RIQ_Health_Signal__c], 'The administrator may log a signal.');

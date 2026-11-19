@@ -56,7 +56,13 @@ private class RIQ_AccountHealthController_Test {
      * @param calculatedOn When it was calculated.
      * @param driversJson Raw payload.
      */
-    private static void addHistory(Id accountId, Integer score, String status, DateTime calculatedOn, String driversJson) {
+    private static void addHistory(
+        Id accountId,
+        Integer score,
+        String status,
+        DateTime calculatedOn,
+        String driversJson
+    ) {
         insert new RIQ_Score_History__c(
             Account__c = accountId,
             Score__c = score,
@@ -122,7 +128,8 @@ private class RIQ_AccountHealthController_Test {
         String many = '[';
 
         for (Integer i = 0; i < 8; i++) {
-            many += (i > 0 ? ',' : '') +
+            many +=
+                (i > 0 ? ',' : '') +
                 '{"signalType":"Support Escalation","severity":2,"points":10,"occurredOn":"2026-11-01","explanation":"x"}';
         }
 
@@ -372,7 +379,11 @@ private class RIQ_AccountHealthController_Test {
         Test.stopTest();
 
         System.assertEquals(7, rejections, 'Every invalid input must be refused.');
-        System.assertEquals(0, [SELECT COUNT() FROM RIQ_Health_Signal__c], 'Nothing may be written for rejected input.');
+        System.assertEquals(
+            0,
+            [SELECT COUNT() FROM RIQ_Health_Signal__c],
+            'Nothing may be written for rejected input.'
+        );
     }
 
     @IsTest

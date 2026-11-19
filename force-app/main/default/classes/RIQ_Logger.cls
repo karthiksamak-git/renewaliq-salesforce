@@ -65,9 +65,7 @@ public without sharing class RIQ_Logger {
         '(?i)(api[_-]?key|apikey|secret|password|passwd|token|client_secret)\\s*[=:]\\s*[^\\s,;"\'&]{3,}'
     );
     /** Ordinary email addresses. */
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(
-        '[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}'
-    );
+    private static final Pattern EMAIL_PATTERN = Pattern.compile('[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}');
     /** Long digit runs and international numbers. */
     private static final Pattern PHONE_PATTERN = Pattern.compile('(\\+\\d[\\d\\s\\-]{8,}\\d|\\b\\d{10,}\\b)');
 
@@ -180,7 +178,13 @@ public without sharing class RIQ_Logger {
         } catch (Exception publishFailure) {
             System.debug( // NOPMD AvoidDebugStatements: the logger has nowhere else to report this.
                 LoggingLevel.ERROR,
-                'RenewalIQ log (' + safeSource + '): ' + safeMessage + ' [not persisted: ' + publishFailure.getMessage() + ']'
+                'RenewalIQ log (' +
+                    safeSource +
+                    '): ' +
+                    safeMessage +
+                    ' [not persisted: ' +
+                    publishFailure.getMessage() +
+                    ']'
             );
         }
     }

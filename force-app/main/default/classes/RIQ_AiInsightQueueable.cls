@@ -142,7 +142,12 @@ public class RIQ_AiInsightQueueable implements Queueable, Database.AllowsCallout
                 );
             } catch (Exception failure) {
                 // One bad account must not cost the rest of the job.
-                RIQ_Logger.error('RIQ_AiInsightQueueable', 'Insight generation failed for one account.', failure, account.Id);
+                RIQ_Logger.error(
+                    'RIQ_AiInsightQueueable',
+                    'Insight generation failed for one account.',
+                    failure,
+                    account.Id
+                );
             }
         }
 

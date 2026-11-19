@@ -105,8 +105,14 @@ private class RIQ_Performance_Test {
         Assert.areEqual(ACCOUNT_COUNT, result.processedCount, 'Every account in the chunk should be scored.');
         Assert.areEqual(ACCOUNT_COUNT, result.updatedCount, 'Every score should save.');
         Assert.areEqual(0, result.failureCount, 'A clean run should record no failures.');
-        Assert.isTrue(queriesUsed <= MAX_QUERIES, 'SOQL statements used: ' + queriesUsed + ' (budget ' + MAX_QUERIES + ').');
-        Assert.isTrue(dmlUsed <= MAX_DML_STATEMENTS, 'DML statements used: ' + dmlUsed + ' (budget ' + MAX_DML_STATEMENTS + ').');
+        Assert.isTrue(
+            queriesUsed <= MAX_QUERIES,
+            'SOQL statements used: ' + queriesUsed + ' (budget ' + MAX_QUERIES + ').'
+        );
+        Assert.isTrue(
+            dmlUsed <= MAX_DML_STATEMENTS,
+            'DML statements used: ' + dmlUsed + ' (budget ' + MAX_DML_STATEMENTS + ').'
+        );
         Assert.isTrue(cpuUsed < MAX_CPU_MS, 'CPU milliseconds used: ' + cpuUsed + ' (budget ' + MAX_CPU_MS + ').');
         Assert.areEqual(
             ACCOUNT_COUNT,
@@ -133,7 +139,11 @@ private class RIQ_Performance_Test {
                 (Limits.getQueries() - queriesBefore)
         );
 
-        Assert.areEqual(ACCOUNT_COUNT, [SELECT COUNT() FROM Account WHERE RIQ_Last_Scored__c != NULL], 'The batch should score the whole chunk.');
+        Assert.areEqual(
+            ACCOUNT_COUNT,
+            [SELECT COUNT() FROM Account WHERE RIQ_Last_Scored__c != NULL],
+            'The batch should score the whole chunk.'
+        );
         Assert.areEqual(
             ACCOUNT_COUNT,
             [SELECT COUNT() FROM RIQ_Score_History__c],

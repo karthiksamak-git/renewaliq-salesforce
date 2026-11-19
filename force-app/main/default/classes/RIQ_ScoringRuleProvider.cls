@@ -21,9 +21,11 @@ public with sharing class RIQ_ScoringRuleProvider {
         if (rulesBySignalType == null) {
             rulesBySignalType = new Map<String, RIQ_ScoringRule>();
 
-            // NOPMD ApexCRUDViolation: custom metadata is read through its own
-            // object-level access and has no FLS or sharing to enforce; a CRUD
-            // check here would either be a no-op or block the engine for everyone.
+            // ApexCRUDViolation: custom metadata is read through its own object-level
+            // access and has no FLS or sharing to enforce; a CRUD check here would
+            // either be a no-op or block the engine for everyone. The NOPMD must sit
+            // on the reported line, so the formatter is told to leave it alone.
+            // prettier-ignore
             for (RIQ_Scoring_Rule__mdt rule : [ // NOPMD custom metadata has no FLS or sharing
                 SELECT Signal_Type__c, Base_Weight__c, Decay_Days__c
                 FROM RIQ_Scoring_Rule__mdt
@@ -47,8 +49,9 @@ public with sharing class RIQ_ScoringRuleProvider {
         if (thresholds == null) {
             thresholds = new List<RIQ_HealthThreshold>();
 
-            // NOPMD ApexCRUDViolation and AvoidNonRestrictiveQueries: a custom
-            // metadata table is at most a handful of rows and has no FLS.
+            // ApexCRUDViolation and AvoidNonRestrictiveQueries: a custom metadata
+            // table is at most a handful of rows and has no FLS.
+            // prettier-ignore
             for (RIQ_Threshold__mdt threshold : [ // NOPMD custom metadata has no FLS or sharing
                 SELECT Status__c, Min_Score__c
                 FROM RIQ_Threshold__mdt

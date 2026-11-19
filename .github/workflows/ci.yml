@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# One run per branch: pushing twice in a minute should not queue two scratch orgs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-unit:
+    name: Lint, format and LWC unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      # Runs on Linux on purpose: the Apex parser ships a native binary that an
+      # application-control policy blocks on the author's Windows machine.
+      - name: Prettier (Apex, XML, LWC, Markdown, YAML)
+        run: npm run prettier:verify
+
+      - name: Jest with coverage
+        run: npm run test:unit:coverage
+
+      - name: Upload Jest coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-coverage
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  apex-and-scratch:
+    name: Apex tests, coverage gate and PMD in a scratch org
+    needs: lint-and-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # A pull request opened from a fork cannot read repository secrets, so there is no
+    # Dev Hub to authenticate with. Skipping with a visible reason is honest; failing
+    # would blame the contributor for something they cannot fix. Lint and Jest still
+    # run above, so a fork's code is still checked.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      SCRATCH_ORG_ALIAS: ci-scratch
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java for PMD
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install the Salesforce CLI
+        run: |
+          npm install --global @salesforce/cli@2
+          sf --version
+
+      - name: Install the Code Analyzer plugin
+        run: |
+          sf plugins install @salesforce/plugin-code-analyzer
+          sf code-analyzer --help > /dev/null
+
+      - name: Authenticate to the Dev Hub
+        env:
+          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL }}
+        run: |
+          if [ -z "$SFDX_AUTH_URL" ]; then
+            echo "::error::SFDX_AUTH_URL is not set. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          # The URL goes into a file that only this step can read, and the file is
+          # deleted whatever happens. The value is never echoed and never committed.
+          auth_file="$(mktemp)"
+          chmod 600 "$auth_file"
+          printf '%s' "$SFDX_AUTH_URL" > "$auth_file"
+          sf org login sfdx-url --sfdx-url-file "$auth_file" --alias devhub --set-default-dev-hub
+          rm -f "$auth_file"
+
+      - name: Create the scratch org
+        run: |
+          sf org create scratch \
+            --target-dev-hub devhub \
+            --definition-file config/project-scratch-def.json \
+            --alias "$SCRATCH_ORG_ALIAS" \
+            --duration-days 1 \
+            --wait 20
+
+      - name: Deploy the project
+        run: |
+          sf project deploy start \
+            --target-org "$SCRATCH_ORG_ALIAS" \
+            --test-level NoTestRun \
+            --wait 45
+
+      - name: Assign permission sets
+        run: |
+          for permission_set in RIQ_Admin RIQ_CSM RIQ_Read_Only RIQ_AI_Insight RIQ_Integration_User; do
+            sf org assign permset --name "$permission_set" --target-org "$SCRATCH_ORG_ALIAS"
+          done
+
+      - name: Load the synthetic demo data
+        run: |
+          sf apex run --file scripts/apex/seed-data.apex --target-org "$SCRATCH_ORG_ALIAS"
+
+      - name: Run every Apex test with coverage
+        run: |
+          mkdir -p test-results
+          set -o pipefail
+          sf apex run test \
+            --target-org "$SCRATCH_ORG_ALIAS" \
+            --test-level RunLocalTests \
+            --code-coverage \
+            --result-format json \
+            --output-dir test-results \
+            --wait 40 | tee test-results/console-output.json
+
+      - name: Enforce the coverage and pass/fail gates
+        run: node scripts/ci/check-coverage.mjs test-results
+
+      - name: Static analysis with PMD
+        run: |
+          mkdir -p test-results
+          sf code-analyzer run \
+            --config-file config/code-analyzer.yml \
+            --workspace . \
+            --rule-selector pmd:RenewalIQApex \
+            --severity-threshold 3 \
+            --view table \
+            --output-file test-results/code-analyzer.csv
+
+      - name: Upload Apex results, coverage and static analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-results
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Delete the scratch org
+        if: always()
+        env:
+          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL }}
+        run: |
+          # If creation itself failed there is nothing to delete, and a failing
+          # delete must not hide the real error that came before it.
+          sf org list --json | grep -q "$SCRATCH_ORG_ALIAS" && \
+            sf org delete scratch --target-org "$SCRATCH_ORG_ALIAS" --no-prompt || \
+            echo "No scratch org to delete."

@@ -1,0 +1,10 @@
+# Replace this handle with your GitHub username after the first push. Until then
+# GitHub shows "unknown owner" and simply does not request a review - nothing breaks.
+* @your-github-username
+
+# Security-relevant surfaces get the same owner, listed explicitly so a future
+# contributor adding a second owner can see which paths matter most.
+/docs/SECURITY.md @your-github-username
+/config/ @your-github-username
+/force-app/main/default/permissionsets/ @your-github-username
+/force-app/main/default/externalCredentials/ @your-github-username

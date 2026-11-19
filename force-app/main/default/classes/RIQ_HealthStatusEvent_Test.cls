@@ -23,12 +23,7 @@ private class RIQ_HealthStatusEvent_Test {
      */
     private static void logSevereSignal(Account account) {
         RIQ_TriggerHandler.bypass('RIQ_HealthSignalTriggerHandler');
-        insert RIQ_TestDataFactory.buildSignal(
-            account.Id,
-            RIQ_TestDataFactory.SUPPORT_ESCALATION,
-            5,
-            Date.today()
-        );
+        insert RIQ_TestDataFactory.buildSignal(account.Id, RIQ_TestDataFactory.SUPPORT_ESCALATION, 5, Date.today());
         RIQ_TriggerHandler.clearBypass();
     }
 

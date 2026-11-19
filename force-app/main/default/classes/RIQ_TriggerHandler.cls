@@ -116,27 +116,44 @@ public virtual class RIQ_TriggerHandler {
         return isBypassed(handlerName);
     }
 
-    // NOPMD EmptyStatementBlock: these seven hooks are the extension points, and
-    // an empty default is what makes a handler opt into exactly the events it
-    // needs instead of being forced to implement all seven.
-    protected virtual void beforeInsert() { // NOPMD intentional empty extension point
+    // These seven hooks are the extension points: a do-nothing default is what lets a
+    // handler opt into exactly the events it needs instead of implementing all seven.
+    // The explicit return keeps the block non-empty, so EmptyStatementBlock never
+    // fires and no suppression is needed - an inline // NOPMD here would be moved
+    // onto its own line by the Apex formatter and silently stop suppressing.
+
+    /** @description Extension point: the base handler does nothing before insert. */
+    protected virtual void beforeInsert() {
+        return;
     }
 
-    protected virtual void beforeUpdate() { // NOPMD intentional empty extension point
+    /** @description Extension point: the base handler does nothing before update. */
+    protected virtual void beforeUpdate() {
+        return;
     }
 
-    protected virtual void beforeDelete() { // NOPMD intentional empty extension point
+    /** @description Extension point: the base handler does nothing before delete. */
+    protected virtual void beforeDelete() {
+        return;
     }
 
-    protected virtual void afterInsert() { // NOPMD intentional empty extension point
+    /** @description Extension point: the base handler does nothing after insert. */
+    protected virtual void afterInsert() {
+        return;
     }
 
-    protected virtual void afterUpdate() { // NOPMD intentional empty extension point
+    /** @description Extension point: the base handler does nothing after update. */
+    protected virtual void afterUpdate() {
+        return;
     }
 
-    protected virtual void afterDelete() { // NOPMD intentional empty extension point
+    /** @description Extension point: the base handler does nothing after delete. */
+    protected virtual void afterDelete() {
+        return;
     }
 
-    protected virtual void afterUndelete() { // NOPMD intentional empty extension point
+    /** @description Extension point: the base handler does nothing after undelete. */
+    protected virtual void afterUndelete() {
+        return;
     }
 }

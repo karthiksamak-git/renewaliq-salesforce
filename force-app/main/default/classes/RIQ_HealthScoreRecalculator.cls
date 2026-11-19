@@ -65,7 +65,10 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
         if (rules.isEmpty()) {
             // Scoring with no rules would set every account to 100, which is
             // worse than leaving the previous score in place.
-            RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'No active scoring rules were found, so recalculation was skipped.');
+            RIQ_Logger.error(
+                'RIQ_HealthScoreRecalculator',
+                'No active scoring rules were found, so recalculation was skipped.'
+            );
             return result;
         }
 
@@ -202,7 +205,10 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
         for (Database.SaveResult saveResult : results) {
             if (!saveResult.isSuccess()) {
                 failures++;
-                RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'Could not publish a health status change event: ' + saveResult.getErrors());
+                RIQ_Logger.error(
+                    'RIQ_HealthScoreRecalculator',
+                    'Could not publish a health status change event: ' + saveResult.getErrors()
+                );
             }
         }
 
@@ -246,7 +252,12 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             if (result.isSuccess()) {
                 saved++;
             } else {
-                RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'Could not update a score.', null, String.valueOf(result.getId()));
+                RIQ_Logger.error(
+                    'RIQ_HealthScoreRecalculator',
+                    'Could not update a score.',
+                    null,
+                    String.valueOf(result.getId())
+                );
             }
         }
 
@@ -271,7 +282,12 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
             if (result.isSuccess()) {
                 saved++;
             } else {
-                RIQ_Logger.error('RIQ_HealthScoreRecalculator', 'Could not write score history.', null, String.valueOf(result.getId()));
+                RIQ_Logger.error(
+                    'RIQ_HealthScoreRecalculator',
+                    'Could not write score history.',
+                    null,
+                    String.valueOf(result.getId())
+                );
             }
         }
 

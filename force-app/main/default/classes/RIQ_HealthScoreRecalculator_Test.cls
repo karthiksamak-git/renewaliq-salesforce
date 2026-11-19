@@ -12,7 +12,12 @@ private class RIQ_HealthScoreRecalculator_Test {
      */
     private static void createSignals(List<Account> accounts, String signalType, Integer severity, Integer daysAgo) {
         RIQ_TriggerHandler.bypass('RIQ_HealthSignalTriggerHandler');
-        insert RIQ_TestDataFactory.buildSignalsForAccounts(accounts, signalType, severity, Date.today().addDays(-daysAgo));
+        insert RIQ_TestDataFactory.buildSignalsForAccounts(
+            accounts,
+            signalType,
+            severity,
+            Date.today().addDays(-daysAgo)
+        );
         RIQ_TriggerHandler.clearBypass();
     }
 
@@ -69,7 +74,11 @@ private class RIQ_HealthScoreRecalculator_Test {
 
         Account scored = [SELECT RIQ_Health_Score__c, RIQ_Churn_Probability__c FROM Account WHERE Id = :account.Id];
         System.assertEquals(50, scored.RIQ_Health_Score__c.intValue(), '25 * 2 = 50 points removed.');
-        System.assertEquals(57, scored.RIQ_Churn_Probability__c.intValue(), '50 * 0.9 = 45, plus 12 for a renewal in 10 days.');
+        System.assertEquals(
+            57,
+            scored.RIQ_Churn_Probability__c.intValue(),
+            '50 * 0.9 = 45, plus 12 for a renewal in 10 days.'
+        );
     }
 
     @IsTest

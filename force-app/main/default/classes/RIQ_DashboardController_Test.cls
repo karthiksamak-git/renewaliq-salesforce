@@ -79,8 +79,10 @@ private class RIQ_DashboardController_Test {
                 expectedAtRiskArr += account.RIQ_ARR__c;
             }
 
-            if (account.RIQ_Contract_End_Date__c >= Date.today() &&
-                account.RIQ_Contract_End_Date__c <= Date.today().addDays(90)) {
+            if (
+                account.RIQ_Contract_End_Date__c >= Date.today() &&
+                account.RIQ_Contract_End_Date__c <= Date.today().addDays(90)
+            ) {
                 expectedRenewals++;
             }
         }
@@ -95,10 +97,7 @@ private class RIQ_DashboardController_Test {
         System.assertEquals(50, kpi.criticalCount);
         System.assertEquals(expectedRenewals, kpi.renewalsDue);
         System.assertEquals(90, kpi.renewalWindowDays);
-        System.assertEquals(
-            (scoreTotal / BOOK_SIZE).setScale(1, RoundingMode.HALF_UP),
-            kpi.averageScore.setScale(1)
-        );
+        System.assertEquals((scoreTotal / BOOK_SIZE).setScale(1, RoundingMode.HALF_UP), kpi.averageScore.setScale(1));
     }
 
     @IsTest
@@ -115,10 +114,7 @@ private class RIQ_DashboardController_Test {
         update reassigned;
 
         Test.startTest();
-        RIQ_DashboardController.Kpi mine = RIQ_DashboardController.getKpis(
-            UserInfo.getUserId(),
-            90
-        );
+        RIQ_DashboardController.Kpi mine = RIQ_DashboardController.getKpis(UserInfo.getUserId(), 90);
         RIQ_DashboardController.Kpi theirs = RIQ_DashboardController.getKpis(otherOwner.Id, 90);
         Test.stopTest();
 
@@ -319,9 +315,24 @@ private class RIQ_DashboardController_Test {
 
         System.runAs(csm) {
             insert new List<Account>{
-                new Account(Name = 'RIQ CSM One', RIQ_ARR__c = 1000, RIQ_Health_Status__c = 'Critical', RIQ_Health_Score__c = 10),
-                new Account(Name = 'RIQ CSM Two', RIQ_ARR__c = 2000, RIQ_Health_Status__c = 'At Risk', RIQ_Health_Score__c = 45),
-                new Account(Name = 'RIQ CSM Three', RIQ_ARR__c = 3000, RIQ_Health_Status__c = 'Healthy', RIQ_Health_Score__c = 92)
+                new Account(
+                    Name = 'RIQ CSM One',
+                    RIQ_ARR__c = 1000,
+                    RIQ_Health_Status__c = 'Critical',
+                    RIQ_Health_Score__c = 10
+                ),
+                new Account(
+                    Name = 'RIQ CSM Two',
+                    RIQ_ARR__c = 2000,
+                    RIQ_Health_Status__c = 'At Risk',
+                    RIQ_Health_Score__c = 45
+                ),
+                new Account(
+                    Name = 'RIQ CSM Three',
+                    RIQ_ARR__c = 3000,
+                    RIQ_Health_Status__c = 'Healthy',
+                    RIQ_Health_Score__c = 92
+                )
             };
 
             Test.startTest();
@@ -384,7 +395,10 @@ private class RIQ_DashboardController_Test {
                 RIQ_DashboardController.getKpis(null, 90);
             } catch (AuraHandledException friendly) {
                 rejected = true;
-                System.assert(friendly.getMessage().contains('permission set'), 'Message must tell them what to ask for.');
+                System.assert(
+                    friendly.getMessage().contains('permission set'),
+                    'Message must tell them what to ask for.'
+                );
             }
 
             Test.stopTest();

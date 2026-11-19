@@ -108,6 +108,11 @@ public with sharing class RIQ_AiInsightService {
         }
 
         Config config = new Config();
+        // Custom metadata has no FLS or sharing, so a CRUD check here is a no-op.
+        // The suppression is inline because PMD only honours NOPMD on the line it
+        // reports, and the Apex formatter would move a bracket comment onto its own
+        // line - which is exactly why this statement is skipped by prettier.
+        // prettier-ignore
         List<RIQ_AI_Config__mdt> records = [ // NOPMD custom metadata has no FLS or sharing
             SELECT Is_Enabled__c, Model_Name__c, Max_Tokens__c, Timeout_Seconds__c, Provider__c, Request_Path__c
             FROM RIQ_AI_Config__mdt
@@ -182,7 +187,11 @@ public with sharing class RIQ_AiInsightService {
             } catch (Exception unexpected) {
                 // A defect in prompt building or parsing must not cost the user
                 // their page: fall through to the rule-based insight.
-                RIQ_Logger.error('RIQ_AiInsightService', 'Insight generation failed, using the rule-based fallback.', unexpected);
+                RIQ_Logger.error(
+                    'RIQ_AiInsightService',
+                    'Insight generation failed, using the rule-based fallback.',
+                    unexpected
+                );
             }
         }
 
@@ -209,8 +218,12 @@ public with sharing class RIQ_AiInsightService {
         lines.add('Account: ' + account.Name);
         lines.add(
             'Health score: ' +
-            (account.RIQ_Health_Score__c == null ? 'not scored' : String.valueOf(account.RIQ_Health_Score__c.intValue()) + '/100') +
-            ' (' + (String.isBlank(account.RIQ_Health_Status__c) ? 'Unknown' : account.RIQ_Health_Status__c) + ')'
+                (account.RIQ_Health_Score__c == null
+                    ? 'not scored'
+                    : String.valueOf(account.RIQ_Health_Score__c.intValue()) + '/100') +
+                ' (' +
+                (String.isBlank(account.RIQ_Health_Status__c) ? 'Unknown' : account.RIQ_Health_Status__c) +
+                ')'
         );
 
         if (account.RIQ_ARR__c != null) {
@@ -220,8 +233,10 @@ public with sharing class RIQ_AiInsightService {
         if (account.RIQ_Contract_End_Date__c != null) {
             lines.add(
                 'Contract ends: ' +
-                String.valueOf(account.RIQ_Contract_End_Date__c) +
-                ' (' + account.RIQ_Contract_End_Date__c.daysBetween(Date.today()) + ' days away)'
+                    String.valueOf(account.RIQ_Contract_End_Date__c) +
+                    ' (' +
+                    account.RIQ_Contract_End_Date__c.daysBetween(Date.today()) +
+                    ' days away)'
             );
         }
 
@@ -235,9 +250,12 @@ public with sharing class RIQ_AiInsightService {
                 }
 
                 lines.add(
-                    '- ' + signal.Signal_Type__c +
-                    ' | ' + signal.Severity__c +
-                    ' | ' + String.valueOf(signal.Occurred_On__c)
+                    '- ' +
+                        signal.Signal_Type__c +
+                        ' | ' +
+                        signal.Severity__c +
+                        ' | ' +
+                        String.valueOf(signal.Occurred_On__c)
                 );
                 sent++;
             }
@@ -254,7 +272,9 @@ public with sharing class RIQ_AiInsightService {
             'lakh and crore style, for example 12.5 L or 4.25 Cr, and never use a dollar sign.'
         );
         lines.add('Reply with JSON only, no prose and no code fences:');
-        lines.add('{"summary": "<=600 characters", "nextBestAction": "<=200 characters", "riskReasons": ["<=3 short reasons"]}');
+        lines.add(
+            '{"summary": "<=600 characters", "nextBestAction": "<=200 characters", "riskReasons": ["<=3 short reasons"]}'
+        );
         lines.add('Never include names, email addresses, phone numbers or verbatim customer quotes.');
         return String.join(lines, '\n');
     }
@@ -269,10 +289,7 @@ public with sharing class RIQ_AiInsightService {
      * @return JSON request body.
      */
     public static String buildRequestBody(Config config, String prompt) {
-        Map<String, Object> systemMessage = new Map<String, Object>{
-            'role' => 'system',
-            'content' => SYSTEM_PROMPT
-        };
+        Map<String, Object> systemMessage = new Map<String, Object>{ 'role' => 'system', 'content' => SYSTEM_PROMPT };
         Map<String, Object> userMessage = new Map<String, Object>{ 'role' => 'user', 'content' => prompt };
         Map<String, Object> responseFormat = new Map<String, Object>{ 'type' => 'json_object' };
         Map<String, Object> payload = new Map<String, Object>{
@@ -320,15 +337,19 @@ public with sharing class RIQ_AiInsightService {
                 RIQ_Logger.warn(
                     'RIQ_AiInsightService',
                     'Model responded ' +
-                    result.statusCode +
-                    (retryAfter == null ? '' : ' (Retry-After: ' + retryAfter + 's)') +
-                    ', using the rule-based fallback.'
+                        result.statusCode +
+                        (retryAfter == null ? '' : ' (Retry-After: ' + retryAfter + 's)') +
+                        ', using the rule-based fallback.'
                 );
             }
         } catch (CalloutException calloutFailure) {
             // A missing key, a wrong endpoint or a timeout all land here. The
             // message is safe to store: it names the endpoint, never the key.
-            RIQ_Logger.warn('RIQ_AiInsightService', 'The model callout failed, using the rule-based fallback.', calloutFailure);
+            RIQ_Logger.warn(
+                'RIQ_AiInsightService',
+                'The model callout failed, using the rule-based fallback.',
+                calloutFailure
+            );
         }
 
         return result;
@@ -364,7 +385,10 @@ public with sharing class RIQ_AiInsightService {
         try {
             parsed = JSON.deserializeUntyped(unwrapJson(content));
         } catch (Exception notJson) {
-            RIQ_Logger.warn('RIQ_AiInsightService', 'Model response content was not JSON, using the rule-based fallback.');
+            RIQ_Logger.warn(
+                'RIQ_AiInsightService',
+                'Model response content was not JSON, using the rule-based fallback.'
+            );
             return null;
         }
 
@@ -432,11 +456,7 @@ public with sharing class RIQ_AiInsightService {
      * @param driversJson Newest drivers payload.
      * @return Insight with source Rule-based.
      */
-    public static Insight buildRuleBased(
-        Account account,
-        List<RIQ_Health_Signal__c> signals,
-        String driversJson
-    ) {
+    public static Insight buildRuleBased(Account account, List<RIQ_Health_Signal__c> signals, String driversJson) {
         Insight insight = new Insight();
         insight.source = SOURCE_RULE_BASED;
 
@@ -445,8 +465,13 @@ public with sharing class RIQ_AiInsightService {
         Integer signalCount = signals == null ? 0 : signals.size();
 
         insight.summary =
-            status + ' account' + (score == null ? '' : ' at ' + score + '/100') +
-            ' with ' + signalCount + ' recorded signal' + (signalCount == 1 ? '' : 's') +
+            status +
+            ' account' +
+            (score == null ? '' : ' at ' + score + '/100') +
+            ' with ' +
+            signalCount +
+            ' recorded signal' +
+            (signalCount == 1 ? '' : 's') +
             ' in the scoring window. ' +
             (account.RIQ_ARR__c == null
                 ? ''
@@ -460,7 +485,9 @@ public with sharing class RIQ_AiInsightService {
         List<String> drivers = topDriverLabels(driversJson, MAX_REASONS);
 
         if (drivers.isEmpty()) {
-            drivers.add(status == 'Healthy' ? 'No material risk drivers are active.' : 'Too few signals to identify a driver.');
+            drivers.add(
+                status == 'Healthy' ? 'No material risk drivers are active.' : 'Too few signals to identify a driver.'
+            );
         }
 
         insight.riskReasons = drivers;
@@ -525,7 +552,9 @@ public with sharing class RIQ_AiInsightService {
                     continue;
                 }
 
-                Decimal points = values.get('points') == null ? null : Decimal.valueOf(String.valueOf(values.get('points')));
+                Decimal points = values.get('points') == null
+                    ? null
+                    : Decimal.valueOf(String.valueOf(values.get('points')));
 
                 if (points != null) {
                     label += ' (' + (points > 0 ? '-' : '+') + Math.abs(points.intValue()) + ' pts)';

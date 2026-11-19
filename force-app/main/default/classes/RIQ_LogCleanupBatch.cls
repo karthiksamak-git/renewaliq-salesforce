@@ -80,7 +80,11 @@ public with sharing class RIQ_LogCleanupBatch implements Database.Batchable<SObj
         }
 
         for (Database.DeleteResult result : Database.delete(scope, false, AccessLevel.SYSTEM_MODE)) {
-            if (result.isSuccess()) { deletedCount++; } else { RIQ_Logger.warn('RIQ_LogCleanupBatch', 'Could not delete one log row.'); }
+            if (result.isSuccess()) {
+                deletedCount++;
+            } else {
+                RIQ_Logger.warn('RIQ_LogCleanupBatch', 'Could not delete one log row.');
+            }
         }
     }
 
@@ -105,7 +109,7 @@ public with sharing class RIQ_LogCleanupBatch implements Database.Batchable<SObj
     public static Id schedule() {
         List<CronTrigger> existing = [SELECT Id FROM CronTrigger WHERE CronJobDetail.Name = :JOB_NAME];
 
-                for (CronTrigger job : existing) {
+        for (CronTrigger job : existing) {
             abortQuietly(job.Id);
         }
 

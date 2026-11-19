@@ -8,16 +8,35 @@ node_modules/
 .localdevserver/
 deploy-options.json
 
+# Generated, org-specific metadata. The platform event subscriber config names the
+# username the trigger runs as, and that username only exists in one org, so the
+# setup scripts render it from config/platform-event/*.template at install time.
+force-app/main/default/platformEventSubscriberConfigs/
+
 # Test / build output
 coverage/
 dist/
+test-results/
 *.log
+.riq-*
+.hub-*
+
+# Credentials and auth material - never commit these
+.env
+.env.*
+!.env.example
+authURL.txt
+*.key
+*.pem
+*.p12
+*.pfx
+sfdx-auth-url.txt
 
 # OS + editor
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 
-# Local env files
-.env
-.env.local
+# Local tool artifacts
+.cloud-attachments/

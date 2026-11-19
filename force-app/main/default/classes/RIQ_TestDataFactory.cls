@@ -157,7 +157,9 @@ public class RIQ_TestDataFactory {
     public static Id nonExistentAccountId() {
         // A 15 character id: Salesforce validates the checksum of an 18 character
         // id, so a synthesised one has to stay in the short form.
-        return Id.valueOf(Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix() + '0'.repeat(12));
+        return Id.valueOf(
+            Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix() + '0'.repeat(12)
+        );
     }
 
     /**

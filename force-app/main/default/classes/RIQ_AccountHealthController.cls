@@ -198,7 +198,9 @@ public with sharing class RIQ_AccountHealthController {
             );
 
             if (result.processedCount == 0) {
-                throw userError('That account could not be scored. It may have been deleted, or you may not have access to it.');
+                throw userError(
+                    'That account could not be scored. It may have been deleted, or you may not have access to it.'
+                );
             }
 
             return getHealthCard(accountId);
@@ -247,9 +249,7 @@ public with sharing class RIQ_AccountHealthController {
         }
 
         if (notes != null && notes.length() > MAX_NOTES_LENGTH) {
-            throw userError(
-                'The notes are too long. Shorten them to ' + MAX_NOTES_LENGTH + ' characters or fewer.'
-            );
+            throw userError('The notes are too long. Shorten them to ' + MAX_NOTES_LENGTH + ' characters or fewer.');
         }
 
         try {
@@ -306,8 +306,7 @@ public with sharing class RIQ_AccountHealthController {
                 throw userError('That account does not exist, or you do not have access to it.');
             }
 
-            List<RIQ_Score_History__c> historyRows = new RIQ_ScoreHistorySelector()
-                .getLatestForAccount(accountId, 1);
+            List<RIQ_Score_History__c> historyRows = new RIQ_ScoreHistorySelector().getLatestForAccount(accountId, 1);
             List<RIQ_Health_Signal__c> signals = new RIQ_HealthSignalSelector()
                 .getByAccountIds(new Set<Id>{ accountId });
 
@@ -477,7 +476,9 @@ public with sharing class RIQ_AccountHealthController {
         // The user gets a friendly sentence; the administrator gets the stack in
         // RIQ_Log__c. Raw exception text never reaches the client.
         RIQ_Logger.error('RIQ_AccountHealthController', 'Could not ' + action + '.', failure);
-        return userError('RenewalIQ could not ' + action + '. Please try again, or contact your Salesforce administrator.');
+        return userError(
+            'RenewalIQ could not ' + action + '. Please try again, or contact your Salesforce administrator.'
+        );
     }
 
     /**

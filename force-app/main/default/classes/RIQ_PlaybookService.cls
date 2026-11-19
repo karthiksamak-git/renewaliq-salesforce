@@ -104,7 +104,8 @@ public with sharing class RIQ_PlaybookService {
 
         result.tasksCreated = insertTasks(tasksToInsert);
         result.opportunitiesCreated = insertOpportunities(opportunitiesToInsert);
-        result.failureCount = (tasksToInsert.size() - result.tasksCreated) + (opportunitiesToInsert.size() - result.opportunitiesCreated);
+        result.failureCount =
+            (tasksToInsert.size() - result.tasksCreated) + (opportunitiesToInsert.size() - result.opportunitiesCreated);
         result.insightJobQueued = enqueueInsightJob(accountIds);
 
         return result;
@@ -148,7 +149,9 @@ public with sharing class RIQ_PlaybookService {
             ActivityDate = Date.today().addDays(TASK_DUE_IN_DAYS),
             Priority = newStatus == 'Critical' ? 'High' : 'Normal',
             Status = 'Not Started',
-            Description = 'RenewalIQ moved this account to ' + newStatus + '. Confirm executive sponsorship and the renewal plan.'
+            Description = 'RenewalIQ moved this account to ' +
+                newStatus +
+                '. Confirm executive sponsorship and the renewal plan.'
         );
     }
 
@@ -176,6 +179,7 @@ public with sharing class RIQ_PlaybookService {
      * @param account Account to test.
      * @return True when a renewal should be opened.
      */
+    @TestVisible
     private static Boolean isRenewalWindowOpen(Account account) {
         if (account.RIQ_Contract_End_Date__c == null) {
             return false;
@@ -271,7 +275,12 @@ public with sharing class RIQ_PlaybookService {
             if (saveResult.isSuccess()) {
                 inserted++;
             } else {
-                RIQ_Logger.error('RIQ_PlaybookService', 'Could not create an outreach task.', null, String.valueOf(saveResult.getId()));
+                RIQ_Logger.error(
+                    'RIQ_PlaybookService',
+                    'Could not create an outreach task.',
+                    null,
+                    String.valueOf(saveResult.getId())
+                );
             }
         }
 
@@ -292,7 +301,12 @@ public with sharing class RIQ_PlaybookService {
             if (saveResult.isSuccess()) {
                 inserted++;
             } else {
-                RIQ_Logger.error('RIQ_PlaybookService', 'Could not create a renewal opportunity.', null, String.valueOf(saveResult.getId()));
+                RIQ_Logger.error(
+                    'RIQ_PlaybookService',
+                    'Could not create a renewal opportunity.',
+                    null,
+                    String.valueOf(saveResult.getId())
+                );
             }
         }
 

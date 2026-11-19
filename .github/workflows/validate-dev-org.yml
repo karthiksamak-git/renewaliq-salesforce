@@ -1,0 +1,99 @@
+name: Validate against the Developer org
+
+# The scratch-org job in ci.yml proves the project deploys to a *fresh* org.
+# This workflow is the other half: a check-only deployment to the long-lived
+# Developer Edition org, where the real demo data, the stored API key and the
+# scheduled jobs live. Nothing is written to that org.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: validate-dev-org-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Check-only deploy with local tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Optional by design: a fork, or a reader who only has a scratch org, should get
+      # a skipped job and a green run rather than a red X for a secret they cannot add.
+      - name: Check for the Developer org secret
+        id: secret
+        env:
+          SFDX_AUTH_URL_DEVORG: ${{ secrets.SFDX_AUTH_URL_DEVORG }}
+        run: |
+          if [ -z "$SFDX_AUTH_URL_DEVORG" ]; then
+            echo "::notice::SFDX_AUTH_URL_DEVORG is not set - skipping the Developer org validation."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install the Salesforce CLI
+        if: steps.secret.outputs.available == 'true'
+        run: npm install --global @salesforce/cli@2
+
+      - name: Authenticate to the Developer org
+        if: steps.secret.outputs.available == 'true'
+        env:
+          SFDX_AUTH_URL_DEVORG: ${{ secrets.SFDX_AUTH_URL_DEVORG }}
+        run: |
+          auth_file="$(mktemp)"
+          chmod 600 "$auth_file"
+          printf '%s' "$SFDX_AUTH_URL_DEVORG" > "$auth_file"
+          sf org login sfdx-url --sfdx-url-file "$auth_file" --alias devorg
+          rm -f "$auth_file"
+
+      # --dry-run is what makes this safe: Salesforce runs the whole deployment,
+      # including every local test, and throws the result away. No scheduled job is
+      # rescheduled and no key is touched.
+      - name: Validate (check-only deploy)
+        if: steps.secret.outputs.available == 'true'
+        run: |
+          set +e
+          sf project deploy validate \
+            --target-org devorg \
+            --test-level RunLocalTests \
+            --wait 60 2>&1 | tee deploy-validate.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -ne 0 ] && grep -qi "jobs pending or in progress\|scheduled job" deploy-validate.log; then
+            cat <<'MESSAGE'
+          :error::A scheduled RenewalIQ job is blocking the deployment. This is an org
+          state, not a code problem: a check-only deploy does not need the jobs aborted,
+          but a real deploy does. Abort them in the Developer org and re-run:
+
+            sf apex run --file scripts/apex/abort-scheduled-jobs.apex --target-org devorg
+            sf project deploy start --target-org devorg --wait 45
+            sf apex run --file scripts/apex/schedule-jobs.apex --target-org devorg
+          MESSAGE
+            exit 1
+          fi
+
+          exit "$status"
+
+      - name: Upload the validation log
+        if: always() && steps.secret.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-org-validation
+          path: deploy-validate.log
+          retention-days: 14
+          if-no-files-found: ignore

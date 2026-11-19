@@ -54,7 +54,11 @@ private class RIQ_Logger_Test {
         RIQ_Logger.warn('RIQ_Logger_Test', 'A handled condition.');
         RIQ_Logger.warn('RIQ_Logger_Test', 'A handled condition with an exception.', realFailure());
         RIQ_Logger.info('RIQ_Logger_Test', 'A routine fact.');
-        RIQ_Logger.info('RIQ_Logger_Test', 'A routine fact about a job.', String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()));
+        RIQ_Logger.info(
+            'RIQ_Logger_Test',
+            'A routine fact about a job.',
+            String.valueOf(RIQ_TestDataFactory.nonExistentAccountId())
+        );
         Test.stopTest();
 
         String warningLevel = RIQ_Logger.LEVEL_WARNING;

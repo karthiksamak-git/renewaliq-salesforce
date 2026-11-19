@@ -47,13 +47,7 @@ public with sharing class RIQ_HealthScoreService {
         /** One-line, CSM-readable reason. */
         public String explanation { get; private set; }
 
-        public ScoreDriver(
-            Id signalId,
-            String signalType,
-            Integer severity,
-            Decimal points,
-            Date occurredOn
-        ) {
+        public ScoreDriver(Id signalId, String signalType, Integer severity, Decimal points, Date occurredOn) {
             this.signalId = signalId;
             this.signalType = signalType;
             this.severity = severity;

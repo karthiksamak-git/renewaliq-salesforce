@@ -105,7 +105,8 @@ global with sharing class RIQ_SignalRestResource {
         Integer statusCode = 200;
 
         try {
-            String body = RestContext.request == null || RestContext.request.requestBody == null
+            String body = RestContext.request == null ||
+                RestContext.request.requestBody == null
                 ? null
                 : RestContext.request.requestBody.toString();
 
@@ -124,7 +125,11 @@ global with sharing class RIQ_SignalRestResource {
                     if (items.size() > MAX_SIGNALS) {
                         statusCode = 413;
                         result = errorResponse(
-                            'A maximum of ' + MAX_SIGNALS + ' signals can be sent per request; ' + items.size() + ' were received.'
+                            'A maximum of ' +
+                                MAX_SIGNALS +
+                                ' signals can be sent per request; ' +
+                                items.size() +
+                                ' were received.'
                         );
                     } else {
                         result = processAll(items);
@@ -135,7 +140,11 @@ global with sharing class RIQ_SignalRestResource {
             statusCode = 400;
             result = errorResponse('The request body is not valid JSON.');
         } catch (Exception unexpected) {
-            RIQ_Logger.error('RIQ_SignalRestResource', 'Unhandled failure while processing an inbound signal batch.', unexpected);
+            RIQ_Logger.error(
+                'RIQ_SignalRestResource',
+                'Unhandled failure while processing an inbound signal batch.',
+                unexpected
+            );
             statusCode = 500;
             result = errorResponse('The request could not be processed. No changes were made.');
         }
@@ -323,7 +332,12 @@ global with sharing class RIQ_SignalRestResource {
                 );
                 row.signalId = saveResult.getId();
             } else {
-                row = new SignalResult(request.index, request.externalId, 'error', describeErrors(saveResult.getErrors()));
+                row = new SignalResult(
+                    request.index,
+                    request.externalId,
+                    'error',
+                    describeErrors(saveResult.getErrors())
+                );
             }
 
             resultsByIndex.put(request.index, row);
@@ -358,7 +372,11 @@ global with sharing class RIQ_SignalRestResource {
         } catch (QueryException noAccess) {
             // A caller without account access gets a per-record "no account"
             // error, not a 500: the request was understood, it was not permitted.
-            RIQ_Logger.warn('RIQ_SignalRestResource', 'Account lookup was refused by sharing or field permissions.', noAccess);
+            RIQ_Logger.warn(
+                'RIQ_SignalRestResource',
+                'Account lookup was refused by sharing or field permissions.',
+                noAccess
+            );
             return new Map<String, Id>();
         }
 

@@ -223,13 +223,17 @@ private class RIQ_AiInsightService_Test {
             '{"choices":[{"message":null}]}'
         };
 
-        for (String content : new List<String>{
-            'not json at all',
-            '{"summary":null}',
-            '{"nextBestAction":"only an action"}',
-            '   '
-        }) {
-            bodies.add('{"choices":[{"index":0,"message":{"role":"assistant","content":' + JSON.serialize(content) + '}}]}');
+        for (
+            String content : new List<String>{
+                'not json at all',
+                '{"summary":null}',
+                '{"nextBestAction":"only an action"}',
+                '   '
+            }
+        ) {
+            bodies.add(
+                '{"choices":[{"index":0,"message":{"role":"assistant","content":' + JSON.serialize(content) + '}}]}'
+            );
         }
 
         Test.startTest();
@@ -241,7 +245,11 @@ private class RIQ_AiInsightService_Test {
                 new List<RIQ_Health_Signal__c>(),
                 null
             );
-            System.assertEquals(RIQ_AiInsightService.SOURCE_RULE_BASED, insight.source, 'Body should be rejected: ' + body);
+            System.assertEquals(
+                RIQ_AiInsightService.SOURCE_RULE_BASED,
+                insight.source,
+                'Body should be rejected: ' + body
+            );
         }
 
         Test.stopTest();
@@ -270,8 +278,13 @@ private class RIQ_AiInsightService_Test {
         String body =
             '{"choices":[{"index":0,"message":{"role":"assistant","content":' +
             JSON.serialize(
-                '{"summary":"' + longSummary + '","nextBestAction":"' + longAction +
-                '","riskReasons":["' + longReason + '","b","c","d"]}'
+                '{"summary":"' +
+                    longSummary +
+                    '","nextBestAction":"' +
+                    longAction +
+                    '","riskReasons":["' +
+                    longReason +
+                    '","b","c","d"]}'
             ) +
             '}}]}';
 
@@ -279,7 +292,11 @@ private class RIQ_AiInsightService_Test {
 
         System.assertEquals(RIQ_AiInsightService.MAX_SUMMARY_CHARS, insight.summary.length());
         System.assertEquals(RIQ_AiInsightService.MAX_ACTION_CHARS, insight.nextBestAction.length());
-        System.assertEquals(RIQ_AiInsightService.MAX_REASONS, insight.riskReasons.size(), 'Reasons are capped at three.');
+        System.assertEquals(
+            RIQ_AiInsightService.MAX_REASONS,
+            insight.riskReasons.size(),
+            'Reasons are capped at three.'
+        );
         System.assertEquals(RIQ_AiInsightService.MAX_REASON_CHARS, insight.riskReasons[0].length());
     }
 
@@ -325,7 +342,12 @@ private class RIQ_AiInsightService_Test {
         Test.stopTest();
 
         Account stored = [
-            SELECT RIQ_AI_Summary__c, RIQ_Next_Best_Action__c, RIQ_AI_Risk_Reasons__c, RIQ_AI_Source__c, RIQ_AI_Generated_On__c
+            SELECT
+                RIQ_AI_Summary__c,
+                RIQ_Next_Best_Action__c,
+                RIQ_AI_Risk_Reasons__c,
+                RIQ_AI_Source__c,
+                RIQ_AI_Generated_On__c
             FROM Account
             WHERE Id = :testAccount.Id
         ];
@@ -374,7 +396,11 @@ private class RIQ_AiInsightService_Test {
 
         System.assertEquals('openai/gpt-oss-120b', parsed.get('model'));
         System.assertEquals(400, ((Decimal) parsed.get('max_tokens')).intValue());
-        System.assertEquals(0.2, ((Decimal) parsed.get('temperature')).doubleValue(), 'Low temperature keeps the prose repeatable.');
+        System.assertEquals(
+            0.2,
+            ((Decimal) parsed.get('temperature')).doubleValue(),
+            'Low temperature keeps the prose repeatable.'
+        );
         System.assertEquals('json_object', ((Map<String, Object>) parsed.get('response_format')).get('type'));
 
         List<Object> messages = (List<Object>) parsed.get('messages');
@@ -398,12 +424,20 @@ private class RIQ_AiInsightService_Test {
         );
 
         Test.startTest();
-        RIQ_AiInsightService.generate(account('Groq Body Account'), new List<RIQ_Health_Signal__c>{ withNotes }, DRIVERS_JSON);
+        RIQ_AiInsightService.generate(
+            account('Groq Body Account'),
+            new List<RIQ_Health_Signal__c>{ withNotes },
+            DRIVERS_JSON
+        );
         Test.stopTest();
 
         Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(recorder.lastBody);
         System.assertEquals('openai/gpt-oss-120b', body.get('model'));
-        System.assertNotEquals(null, body.get('response_format'), 'JSON mode is requested, so the reply is parseable by contract.');
+        System.assertNotEquals(
+            null,
+            body.get('response_format'),
+            'JSON mode is requested, so the reply is parseable by contract.'
+        );
         System.assertEquals(2, ((List<Object>) body.get('messages')).size());
         System.assert(!recorder.lastBody.contains('Jane'), 'Notes must never reach the model.');
         System.assert(!recorder.lastBody.contains('555'), 'No phone numbers.');
@@ -430,6 +464,10 @@ private class RIQ_AiInsightService_Test {
 
         System.assertEquals(RIQ_AiInsightService.SOURCE_RULE_BASED, insight.source);
         System.assertEquals(1, throttled.callCount, 'Retry-After is read, never waited on: one request, one fallback.');
-        System.assertEquals('Support Escalation (-22 pts)', insight.riskReasons[0], 'The fallback still explains the account.');
+        System.assertEquals(
+            'Support Escalation (-22 pts)',
+            insight.riskReasons[0],
+            'The fallback still explains the account.'
+        );
     }
 }

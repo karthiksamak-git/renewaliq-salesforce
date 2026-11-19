@@ -66,7 +66,10 @@ private class RIQ_LogCleanupBatch_Test {
         Assert.areEqual(RIQ_LogCleanupBatch.DEFAULT_RETENTION_DAYS, new RIQ_LogCleanupBatch(-5).retentionDays);
         Assert.areEqual(RIQ_LogCleanupBatch.DEFAULT_RETENTION_DAYS, new RIQ_LogCleanupBatch(null).retentionDays);
         Assert.areEqual(7, new RIQ_LogCleanupBatch(7).retentionDays);
-        Assert.isTrue(RIQ_LogCleanupBatch.resolveRetentionDays() >= 1, 'Configuration must never produce a zero-day window.');
+        Assert.isTrue(
+            RIQ_LogCleanupBatch.resolveRetentionDays() >= 1,
+            'Configuration must never produce a zero-day window.'
+        );
     }
 
     @IsTest
@@ -78,7 +81,11 @@ private class RIQ_LogCleanupBatch_Test {
 
         String warningLevel = RIQ_Logger.LEVEL_WARNING;
 
-        Assert.areEqual(0, [SELECT COUNT() FROM RIQ_Log__c WHERE Level__c = :RIQ_Logger.LEVEL_ERROR], 'An unusable id is not an error.');
+        Assert.areEqual(
+            0,
+            [SELECT COUNT() FROM RIQ_Log__c WHERE Level__c = :RIQ_Logger.LEVEL_ERROR],
+            'An unusable id is not an error.'
+        );
         Assert.areEqual(
             1,
             [SELECT COUNT() FROM RIQ_Log__c WHERE Level__c = :warningLevel],

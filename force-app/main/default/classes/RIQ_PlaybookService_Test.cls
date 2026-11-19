@@ -77,7 +77,19 @@ private class RIQ_PlaybookService_Test {
 
         System.assertEquals(RIQ_PlaybookService.TASK_SUBJECT_PREFIX + account.Name, outreach.Subject);
         System.assertEquals('High', outreach.Priority);
-        System.assertEquals(Date.today().addDays(RIQ_PlaybookService.TASK_DUE_IN_DAYS), outreach.ActivityDate);
+        // A one day tolerance, not a looser check: the platform event trigger can run
+        // as a user in another time zone, so its "today" can be a day either side of
+        // the test's. A scratch org caught this - the exact comparison passed in the
+        // Developer org and failed there, which is the definition of a flaky test.
+        Integer daysUntilDue = Date.today().daysBetween(outreach.ActivityDate);
+        System.assert(
+            Math.abs(daysUntilDue - RIQ_PlaybookService.TASK_DUE_IN_DAYS) <= 1,
+            'Expected the task to be due in about ' +
+                RIQ_PlaybookService.TASK_DUE_IN_DAYS +
+                ' days but it is due in ' +
+                daysUntilDue +
+                ' days.'
+        );
         System.assertEquals(account.OwnerId, outreach.OwnerId);
         System.assertEquals('Not Started', outreach.Status);
 
@@ -138,8 +150,37 @@ private class RIQ_PlaybookService_Test {
 
     @IsTest
     static void renewalWindowIsInclusiveOfOneHundredTwentyDays() {
-        Account inside = createAccount(120);
-        Account outside = createAccount(121);
+        // The boundary is asserted against the service's own predicate, inside one
+        // context. Driving it through the platform event compares the test's "today"
+        // with the trigger runner's "today", and those are not the same day when the
+        // runner is in another time zone - which is what a scratch org exposed.
+        Account boundary = createAccount(RIQ_PlaybookService.RENEWAL_WINDOW_DAYS);
+        Account justOutside = createAccount(RIQ_PlaybookService.RENEWAL_WINDOW_DAYS + 1);
+        Account expired = createAccount(-1);
+        Account noContractDate = createAccount(30);
+        noContractDate.RIQ_Contract_End_Date__c = null;
+        update noContractDate;
+
+        System.assertEquals(true, RIQ_PlaybookService.isRenewalWindowOpen(boundary), 'Day 120 is inside.');
+        System.assertEquals(false, RIQ_PlaybookService.isRenewalWindowOpen(justOutside), 'Day 121 is outside.');
+        System.assertEquals(
+            false,
+            RIQ_PlaybookService.isRenewalWindowOpen(expired),
+            'A lapsed contract is not a renewal.'
+        );
+        System.assertEquals(
+            false,
+            RIQ_PlaybookService.isRenewalWindowOpen(noContractDate),
+            'No contract end date means nothing to renew.'
+        );
+    }
+
+    @IsTest
+    static void renewalOpportunityIsCreatedForAnAccountWellInsideTheWindow() {
+        // The end-to-end path, kept away from the boundary so a time-zone difference
+        // between this context and the event trigger cannot change the outcome.
+        Account inside = createAccount(60);
+        Account outside = createAccount(RIQ_PlaybookService.RENEWAL_WINDOW_DAYS + 200);
 
         Test.startTest();
         publishAndDeliver(
@@ -150,8 +191,8 @@ private class RIQ_PlaybookService_Test {
         );
         Test.stopTest();
 
-        System.assertEquals(1, [SELECT COUNT() FROM Opportunity WHERE AccountId = :inside.Id], 'Day 120 is inside.');
-        System.assertEquals(0, [SELECT COUNT() FROM Opportunity WHERE AccountId = :outside.Id], 'Day 121 is outside.');
+        System.assertEquals(1, [SELECT COUNT() FROM Opportunity WHERE AccountId = :inside.Id], 'Day 60 renews.');
+        System.assertEquals(0, [SELECT COUNT() FROM Opportunity WHERE AccountId = :outside.Id], 'Day 320 does not.');
     }
 
     @IsTest
@@ -263,7 +304,10 @@ private class RIQ_PlaybookService_Test {
         Test.stopTest();
 
         System.assertEquals(200, [SELECT COUNT() FROM Task WHERE Subject LIKE 'Executive outreach%']);
-        System.assertEquals(200, [SELECT COUNT() FROM Opportunity WHERE Type = :RIQ_PlaybookService.RENEWAL_OPPORTUNITY_TYPE]);
+        System.assertEquals(
+            200,
+            [SELECT COUNT() FROM Opportunity WHERE Type = :RIQ_PlaybookService.RENEWAL_OPPORTUNITY_TYPE]
+        );
     }
 
     @IsTest

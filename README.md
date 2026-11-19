@@ -1,5 +1,11 @@
 # RenewalIQ — Customer Health & Renewal Command Center
 
+[![CI](https://github.com/your-github-username/renewaliq-salesforce/actions/workflows/ci.yml/badge.svg)](https://github.com/your-github-username/renewaliq-salesforce/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+<!-- Replace your-github-username above with your GitHub username after the first push.
+     Until then the CI badge renders as "no status" - it does not break anything else. -->
+
 A Salesforce portfolio project that scores every customer Account's health (0–100)
 from configurable rules, predicts churn risk, creates renewal work automatically,
 and surfaces it all in an LWC dashboard for Customer Success Managers.
@@ -209,7 +215,7 @@ against a destroyed component.
 
 ### Testing the UI
 
-53 Jest tests: the pure helpers directly (donut geometry, sparkline scaling, gauge arc,
+64 Jest tests: the pure helpers directly (donut geometry, sparkline scaling, gauge arc,
 currency/percent/days formatting), and each component through its rendered shadow DOM —
 loading, empty and error states, filter changes reaching Apex with the right arguments,
 datatable sort mapping, the row action, toasts, validation blocking submission, the
@@ -345,6 +351,35 @@ volume, Queueable for latency, Schedulable for the clock.**
 See [docs/DATA_MODEL.md](docs/DATA_MODEL.md) for fields, relationships, and the
 scoring-rule contract.
 
+## CI/CD and one-command setup (Phase 7)
+
+Two workflows, and both gate on evidence rather than on a happy path.
+
+**`ci.yml` — every push and pull request.** A fast job runs ESLint, Prettier over Apex,
+XML, LWC, Markdown and YAML (on Linux, because the Apex parser's native binary is
+blocked by Device Guard on the author's Windows machine), and Jest with coverage. A
+second job then creates a **fresh scratch org** from `config/project-scratch-def.json`,
+deploys the project, assigns all five permission sets, loads the synthetic demo book,
+runs **every** Apex test, fails if org-wide coverage is below **90%** or any class is
+below 75%, runs PMD through Code Analyzer, and deletes the org in an `if: always()`
+step. A pull request from a fork cannot read repository secrets, so that job skips
+itself with a visible reason and the lint/Jest job still runs.
+
+**`validate-dev-org.yml` — push to `main`.** A check-only (`--dry-run`) deployment to
+the long-lived Developer Edition org, with local tests, against a second optional
+secret. It proves the same commit still fits the org that has the real data, the stored
+key and the scheduled jobs. Nothing is written to that org.
+
+Authentication is one GitHub secret, `SFDX_AUTH_URL`, holding Salesforce's `force://`
+auth URL. The workflow writes it to a `mktemp` file with mode 600, logs in with
+`--sfdx-url-file`, and deletes the file in the same step; the value is never echoed and
+never becomes a command-line argument. Details, the Developer Edition Dev Hub limits,
+and the troubleshooting I hit are in **[docs/CI.md](docs/CI.md)**.
+
+For a reviewer, setup is one command — `./scripts/setup.sh` or
+`powershell -File scripts/setup.ps1` — which is idempotent, checks its prerequisites,
+and prints what to click first.
+
 ## Roadmap
 
 | Phase | Scope                                                            | Status |
@@ -354,24 +389,82 @@ scoring-rule contract.
 | 3     | Nightly batch, platform events, playbook automation              | ✅     |
 | 4     | LWC dashboard + Jest tests                                       | ✅     |
 | 5     | LLM callout (Named/External Credential), inbound signal REST API | ✅     |
-| 6     | Security review: sharing, CRUD/FLS, injection, secret handling   | ⬜     |
+| 6     | Security review: sharing, CRUD/FLS, injection, secret handling   | ✅     |
+| 7     | CI/CD on scratch orgs, one-command setup, repo hygiene           | ✅     |
 
-## Prerequisites
+## Quick start in 5 minutes
 
-- Salesforce CLI (`sf`) — verify with `sf --version`
-- Node.js + npm (for Prettier, ESLint and LWC Jest)
-- Git
-- A Developer Edition org or a Dev Hub for scratch orgs
+You need the Salesforce CLI, Node.js 18+ and Git. No API key: the AI summaries ship
+disabled and everything else works without one.
 
-## First-time setup
+### Option A — one command, on a fresh scratch org
+
+```bash
+git clone https://github.com/your-github-username/renewaliq-salesforce.git
+cd renewaliq-salesforce
+sf org login web --set-default-dev-hub --alias devhub   # once, if you have no Dev Hub
+export JAVA_HOME=...                                    # only for PMD and Apex formatting
+./scripts/setup.sh                                      # macOS / Linux
+```
+
+```powershell
+git clone https://github.com/your-github-username/renewaliq-salesforce.git
+cd renewaliq-salesforce
+sf org login web --set-default-dev-hub --alias devhub   # once, if you have no Dev Hub
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
+```
+
+The script creates a scratch org from `config/project-scratch-def.json`, deploys the
+project, assigns all five permission sets, loads the 50-account synthetic demo book,
+scores it through the real engine, runs the nightly batch once, schedules both jobs
+and opens the org. It is idempotent — running it twice reuses the org instead of
+burning another scratch org — and it exits non-zero on the first real failure instead
+of carrying on.
+
+Then: **App Launcher → RenewalIQ**. The Command Center is the app's landing tab.
+
+Clean up with `sf org delete scratch --target-org renewaliq --no-prompt`.
+
+### Option B — a Developer Edition org, by hand
 
 ```bash
 npm install
 sf org login web --alias RenewalIQ --set-default
-sf project deploy start --target-org RenewalIQ
-sf org assign permset --name RIQ_Admin --target-org RenewalIQ   # metadata deploys do not grant profile FLS
-sf apex run --file scripts/apex/seed-data.apex --target-org RenewalIQ
+sf project deploy start --target-org RenewalIQ --wait 45
+
+# Metadata deploys do not grant field access. Assign every set the demo uses.
+for p in RIQ_Admin RIQ_CSM RIQ_Read_Only RIQ_AI_Insight RIQ_Integration_User; do
+  sf org assign permset --name $p --target-org RenewalIQ
+done
+
+sf apex run --file scripts/apex/seed-data.apex        --target-org RenewalIQ
+sf apex run --file scripts/apex/run-nightly-batch.apex --target-org RenewalIQ
+sf apex run --file scripts/apex/schedule-jobs.apex     --target-org RenewalIQ
 ```
+
+`scripts/apex/reset-demo-data.apex` deletes only the records these scripts created, so
+the book can be reset without touching anything else.
+
+### Developer Edition caveats (the ones that actually bite)
+
+- **Two Standard licences.** A Developer Edition org has two, both usually taken (yours
+  and one other user). You cannot create extra users to test the Read-Only or CSM
+  personas — assign `RIQ_Read_Only` to the second user and use **Log in as User**.
+- **The app is invisible until a permission set grants it.** `RIQ_Admin`, `RIQ_CSM` and
+  `RIQ_Read_Only` each carry `applicationVisibilities` for RenewalIQ; a user with none of
+  them sees no tile in the App Launcher. That is the design, not a bug.
+- **Scheduled jobs block deployments.** `RIQ Nightly Health Score` and
+  `RIQ Log Retention Cleanup` make any deploy that touches those classes fail with
+  "jobs pending or in progress". Abort → deploy → reschedule with the three scripts in
+  `scripts/apex/`; `docs/CI.md` has the exact commands.
+- **The event subscriber config is generated, not committed.**
+  `PlatformEventSubscriberConfig` names the user the trigger runs as, and a username
+  only exists in one org. `config/platform-event/*.template` is rendered with the
+  org's own username by the setup scripts. Without it everything still works; Tasks
+  just show `Created By: Automated Process`.
+- **A scratch org has no Groq key.** The AI panel shows a rule-based summary with a
+  **Rule based** badge until you store a key in the External Credential principal and
+  tick **Is Enabled** on the `RIQ AI Config` record. See `docs/INTEGRATIONS.md`.
 
 ## Everyday commands
 
@@ -419,7 +512,12 @@ force-app/main/default/
   staticresources/  chartjs (Chart.js 4.6.1 UMD build, served from the org)
   tabs/             Custom object tabs + the Command Center tab
 scripts/apex/       Anonymous Apex utilities (seeding, smoke tests, live callout check)
-docs/               Interview notes and data model reference
+scripts/ci/         CI helpers (coverage gate)
+scripts/setup.ps1   One-command install, Windows
+scripts/setup.sh    One-command install, macOS / Linux
+config/             Scratch org definitions, PMD ruleset, Code Analyzer config, event config template
+.github/            CI workflows, Dependabot, CODEOWNERS, PR and issue templates
+docs/               Interview notes, data model, API, integrations, security, CI reference
 ```
 
 ## Documentation
@@ -429,4 +527,5 @@ docs/               Interview notes and data model reference
 - [docs/API.md](docs/API.md) — inbound signal API: auth, payload, responses, idempotency, security
 - [docs/INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md) — design decisions per phase
 - [docs/SECURITY.md](docs/SECURITY.md) — security model, permission matrix, findings, logging, static analysis, measured performance
+- [docs/CI.md](docs/CI.md) — the two workflows, `SFDX_AUTH_URL`, Developer Edition Dev Hub limits, the coverage and PMD gates
 - [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) — screenshot checklist for the portfolio write-up

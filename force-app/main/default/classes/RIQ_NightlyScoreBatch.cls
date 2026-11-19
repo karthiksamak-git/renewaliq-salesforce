@@ -51,10 +51,12 @@ public with sharing class RIQ_NightlyScoreBatch implements Database.Batchable<SO
         // score the whole book of business, not the subset its scheduling user
         // happens to own. It writes only system-maintained score fields and
         // reads no free text.
-        // NOPMD AvoidNonRestrictiveQueries: an unfiltered read here is the point.
-        // The batch has to know every account that has any signal at all; a
-        // restrictive filter would silently shrink the book of business.
-        for (RIQ_Health_Signal__c signal : [SELECT Account__c FROM RIQ_Health_Signal__c WITH SYSTEM_MODE]) { // NOPMD an unfiltered read is the point
+        // AvoidNonRestrictiveQueries: an unfiltered read here is the point. The batch
+        // has to know every account that has any signal at all; a restrictive filter
+        // would silently shrink the book of business. The NOPMD has to stay on the
+        // line PMD reports, so the formatter is told to leave the loop alone.
+        // prettier-ignore
+        for (RIQ_Health_Signal__c signal : [SELECT Account__c FROM RIQ_Health_Signal__c WITH SYSTEM_MODE]) { // NOPMD unfiltered read is the point
             if (signal.Account__c != null) {
                 accountIdsWithSignals.add(signal.Account__c);
             }
@@ -64,8 +66,7 @@ public with sharing class RIQ_NightlyScoreBatch implements Database.Batchable<SO
             [
                 SELECT Id
                 FROM Account
-                WHERE RIQ_ARR__c != NULL
-                    OR Id IN :accountIdsWithSignals
+                WHERE RIQ_ARR__c != NULL OR Id IN :accountIdsWithSignals
                 WITH SYSTEM_MODE
             ]
         );

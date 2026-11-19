@@ -19,7 +19,8 @@
     {
       "files": "**/*.{cls,trigger}",
       "options": {
-        "parser": "apex"
+        "parser": "apex",
+        "tabWidth": 4
       }
     },
     {

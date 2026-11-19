@@ -62,7 +62,10 @@ public with sharing class RIQ_HealthSignalTriggerHandler extends RIQ_TriggerHand
             // Nothing safe left to do inline. RIQ_NightlyScoreBatch re-scores
             // the whole book every night, so the data self-heals instead of
             // silently rotting - but a skip is never silent.
-            RIQ_Logger.warn('RIQ_HealthSignalTriggerHandler', 'Queueable limit reached, skipped ' + accountIds.size() + ' account(s).');
+            RIQ_Logger.warn(
+                'RIQ_HealthSignalTriggerHandler',
+                'Queueable limit reached, skipped ' + accountIds.size() + ' account(s).'
+            );
             return;
         }
 

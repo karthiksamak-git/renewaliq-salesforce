@@ -25,8 +25,7 @@ public class RIQ_CalloutMocks {
         '}}]}';
 
     /** JSON mode was requested but the model answered with prose. */
-    public static final String PROSE_BODY =
-        '{"choices":[{"index":0,"message":{"role":"assistant","content":"I think this account is fine."}}]}';
+    public static final String PROSE_BODY = '{"choices":[{"index":0,"message":{"role":"assistant","content":"I think this account is fine."}}]}';
 
     /** A 200 with nothing usable inside. */
     public static final String EMPTY_CHOICES_BODY = '{"choices":[]}';

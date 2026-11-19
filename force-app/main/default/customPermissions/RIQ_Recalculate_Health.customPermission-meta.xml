@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
     <description
   >Allows forcing a synchronous health score recalculation from the UI. Granted to RIQ_Admin and RIQ_CSM only; RIQ_Read_Only must never be able to trigger work.</description>

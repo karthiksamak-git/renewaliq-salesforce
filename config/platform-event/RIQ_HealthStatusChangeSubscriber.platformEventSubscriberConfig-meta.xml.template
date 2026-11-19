@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Template, not deployable metadata.
+
+  Why this is not in force-app: a PlatformEventSubscriberConfig names the user the
+  trigger runs as, and a username only exists in the org it was created in. The
+  Developer Edition org this project was built in has its own copy; a scratch org
+  has a generated username, so shipping this file with a real username in it would
+  make every fresh deploy fail with "user does not exist".
+
+  scripts/setup.ps1 and scripts/setup.sh render this template with the running
+  user's username and deploy the result. To do it by hand, print the username with
+  scripts/apex/whoami.apex, copy it into the user element below, save the file into
+  a folder of your own, and deploy that folder.
+
+  Keep this comment free of double dashes: Salesforce rejects an XML comment that
+  contains them, and a command line pasted here is the usual way they sneak in.
+-->
+<PlatformEventSubscriberConfig xmlns="http://soap.sforce.com/2006/04/metadata">
+    <batchSize>200</batchSize>
+    <masterLabel>RIQ Health Status Change Subscriber</masterLabel>
+    <platformEventConsumer>RIQ_HealthStatusChangeTrigger</platformEventConsumer>
+    <user>{{USERNAME}}</user>
+</PlatformEventSubscriberConfig>

@@ -21,7 +21,6 @@ private class RIQ_SignalRestResource_Test {
         return [SELECT Id, Alias FROM User WHERE Alias = :alias LIMIT 1];
     }
 
-
     /**
      * @param body Raw request body.
      * @return The REST response.
@@ -112,7 +111,11 @@ private class RIQ_SignalRestResource_Test {
         System.assertEquals(account.Id, stored[0].Account__c);
 
         Account rescored = [SELECT RIQ_Last_Scored__c, RIQ_Health_Status__c FROM Account WHERE Id = :account.Id];
-        System.assertNotEquals(null, rescored.RIQ_Last_Scored__c, 'The signal trigger queues the existing recalculation.');
+        System.assertNotEquals(
+            null,
+            rescored.RIQ_Last_Scored__c,
+            'The signal trigger queues the existing recalculation.'
+        );
     }
 
     @IsTest
@@ -171,7 +174,12 @@ private class RIQ_SignalRestResource_Test {
             item('ext-good-1', account.Id, SIGNAL_TYPE, String.valueOf(Date.today())),
             item('ext-bad-type', account.Id, 'Not A Real Type', String.valueOf(Date.today())),
             item('ext-bad-date', account.Id, SIGNAL_TYPE, future),
-            item('ext-bad-account', String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()), SIGNAL_TYPE, String.valueOf(Date.today())),
+            item(
+                'ext-bad-account',
+                String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()),
+                SIGNAL_TYPE,
+                String.valueOf(Date.today())
+            ),
             new Map<String, Object>{ 'accountId' => account.Id, 'signalType' => SIGNAL_TYPE, 'severity' => 3 },
             item('ext-bad-severity', account.Id, SIGNAL_TYPE, String.valueOf(Date.today()))
         };
@@ -226,7 +234,14 @@ private class RIQ_SignalRestResource_Test {
 
         List<Object> tooMany = new List<Object>();
         for (Integer i = 0; i <= RIQ_SignalRestResource.MAX_SIGNALS; i++) {
-            tooMany.add(item('ext-over-' + i, String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()), SIGNAL_TYPE, String.valueOf(Date.today())));
+            tooMany.add(
+                item(
+                    'ext-over-' + i,
+                    String.valueOf(RIQ_TestDataFactory.nonExistentAccountId()),
+                    SIGNAL_TYPE,
+                    String.valueOf(Date.today())
+                )
+            );
         }
 
         RestResponse oversized = post(JSON.serialize(tooMany));
@@ -240,7 +255,9 @@ private class RIQ_SignalRestResource_Test {
         List<Object> items = new List<Object>();
 
         for (Integer i = 0; i < 200; i++) {
-            items.add(item('ext-bulk-' + i, owners[Math.mod(i, owners.size())].Id, SIGNAL_TYPE, String.valueOf(Date.today())));
+            items.add(
+                item('ext-bulk-' + i, owners[Math.mod(i, owners.size())].Id, SIGNAL_TYPE, String.valueOf(Date.today()))
+            );
         }
 
         Test.startTest();
@@ -250,7 +267,10 @@ private class RIQ_SignalRestResource_Test {
         RIQ_SignalRestResource.ApiResponse parsed = payload(response);
         System.assertEquals(200, parsed.created);
         System.assertEquals(0, parsed.failed);
-        System.assertEquals(200, [SELECT COUNT() FROM RIQ_Health_Signal__c WHERE RIQ_External_Key__c LIKE 'ext-bulk-%']);
+        System.assertEquals(
+            200,
+            [SELECT COUNT() FROM RIQ_Health_Signal__c WHERE RIQ_External_Key__c LIKE 'ext-bulk-%']
+        );
     }
 
     @IsTest

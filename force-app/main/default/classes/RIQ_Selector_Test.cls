@@ -92,7 +92,8 @@ private class RIQ_Selector_Test {
     @IsTest
     static void stripInaccessibleDropsFieldsTheUserCannotWrite() {
         List<Account> accounts = RIQ_TestDataFactory.createAccounts(1);
-        List<SObject> stripped = new AccountNameSelector().strip(new List<SObject>{ accounts[0] }, AccessType.UPDATABLE);
+        List<SObject> stripped = new AccountNameSelector()
+            .strip(new List<SObject>{ accounts[0] }, AccessType.UPDATABLE);
 
         System.assertEquals(1, stripped.size());
     }
@@ -104,9 +105,6 @@ private class RIQ_Selector_Test {
             new AccountNameSelector().strip(null, AccessType.READABLE),
             'Null in, null out - callers do not need a null check.'
         );
-        System.assertEquals(
-            0,
-            new AccountNameSelector().strip(new List<SObject>(), AccessType.READABLE).size()
-        );
+        System.assertEquals(0, new AccountNameSelector().strip(new List<SObject>(), AccessType.READABLE).size());
     }
 }

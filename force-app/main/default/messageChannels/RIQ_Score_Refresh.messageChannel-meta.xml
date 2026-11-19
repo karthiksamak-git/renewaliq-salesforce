@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <LightningMessageChannel xmlns="http://soap.sforce.com/2006/04/metadata">
     <description
   >Published by riqSignalLogger after a signal is logged so riqHealthScoreCard can refresh once the queueable recalculation has run.</description>
