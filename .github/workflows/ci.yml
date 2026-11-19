@@ -70,10 +70,14 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
+      # Node 22 or later is required from here on: the Salesforce CLI dropped Node 18/20
+      # support in 2.146.3, and its jsforce dependency resolves to a tree that needs
+      # Node >= 22.19. On Node 20 the CLI dies at load with
+      # "TypeError: webidl.util.markAsUncloneable is not a function" before any step runs.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Set up Java for PMD
         uses: actions/setup-java@v4
