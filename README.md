@@ -1,10 +1,7 @@
 # RenewalIQ — Customer Health & Renewal Command Center
 
-[![CI](https://github.com/your-github-username/renewaliq-salesforce/actions/workflows/ci.yml/badge.svg)](https://github.com/your-github-username/renewaliq-salesforce/actions/workflows/ci.yml)
+[![CI](https://github.com/karthiksamak-git/renewaliq-salesforce/actions/workflows/ci.yml/badge.svg)](https://github.com/karthiksamak-git/renewaliq-salesforce/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-<!-- Replace your-github-username above with your GitHub username after the first push.
-     Until then the CI badge renders as "no status" - it does not break anything else. -->
 
 A Salesforce portfolio project that scores every customer Account's health (0–100)
 from configurable rules, predicts churn risk, creates renewal work automatically,
@@ -400,7 +397,7 @@ disabled and everything else works without one.
 ### Option A — one command, on a fresh scratch org
 
 ```bash
-git clone https://github.com/your-github-username/renewaliq-salesforce.git
+git clone https://github.com/karthiksamak-git/renewaliq-salesforce.git
 cd renewaliq-salesforce
 sf org login web --set-default-dev-hub --alias devhub   # once, if you have no Dev Hub
 export JAVA_HOME=...                                    # only for PMD and Apex formatting
@@ -408,7 +405,7 @@ export JAVA_HOME=...                                    # only for PMD and Apex 
 ```
 
 ```powershell
-git clone https://github.com/your-github-username/renewaliq-salesforce.git
+git clone https://github.com/karthiksamak-git/renewaliq-salesforce.git
 cd renewaliq-salesforce
 sf org login web --set-default-dev-hub --alias devhub   # once, if you have no Dev Hub
 powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
