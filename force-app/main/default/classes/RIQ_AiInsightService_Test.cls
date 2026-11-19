@@ -366,7 +366,25 @@ private class RIQ_AiInsightService_Test {
         Test.stopTest();
 
         System.assertNotEquals(null, config);
-        System.assertEquals(false, config.isEnabled, 'The shipped default is disabled, so no key is required.');
+        // The toggle is compared with the stored record rather than with a fixed
+        // false: the shipped value is false, but an org demonstrating the live
+        // model flips it on, and loadConfig must mirror whatever is stored.
+        RIQ_AI_Config__mdt stored = [
+            SELECT Is_Enabled__c, Max_Tokens__c
+            FROM RIQ_AI_Config__mdt
+            WHERE DeveloperName = 'Default'
+            LIMIT 1
+        ];
+        System.assertEquals(
+            stored.Is_Enabled__c == true,
+            config.isEnabled,
+            'loadConfig must mirror the stored toggle, so the shipped false needs no key.'
+        );
+        System.assertEquals(
+            stored.Max_Tokens__c.intValue(),
+            config.maxTokens,
+            'The token budget comes from metadata; a budget too small for the reasoning model returns empty JSON.'
+        );
         System.assert(String.isNotBlank(config.modelName));
         System.assert(config.endpoint.startsWith('callout:'));
         System.assertEquals('Groq', config.provider);

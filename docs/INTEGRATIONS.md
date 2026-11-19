@@ -20,13 +20,13 @@ signals by hand.
 
 ```
 RIQ_LLM_API        External Credential   principal "RIQ LLM Principal", custom auth header
-                                          Authorization = Bearer {!$Credential.RIQ_LLM_API.apiKey}
+                                          Authorization = {!'Bearer ' & $Credential.RIQ_LLM_API.apiKey}
 RIQ_LLM_API        Named Credential      SecuredEndpoint, https://api.groq.com
 RIQ_AI_Config__mdt Custom Metadata       one record "Default": Is_Enabled__c = false,
                                           Provider__c = Groq,
                                           Request_Path__c = /openai/v1/chat/completions,
                                           Model_Name__c = openai/gpt-oss-120b,
-                                          Max_Tokens__c = 400, Timeout_Seconds__c = 30
+                                          Max_Tokens__c = 1200, Timeout_Seconds__c = 30
 RIQ_AI_Insight     Permission Set        principal access + RIQ_Generate_AI_Insight + AI fields
 ```
 
@@ -83,7 +83,7 @@ body:
     { "role": "user", "content": "<deterministic account data>" }
   ],
   "temperature": 0.2,
-  "max_tokens": 400,
+  "max_tokens": 1200,
   "response_format": { "type": "json_object" }
 }
 ```
@@ -95,6 +95,14 @@ each other. `response_format: json_object` asks Groq for JSON mode, which makes 
 parseable answer the contract rather than a hope. And the headers carry no key: the
 External Credential injects `Authorization: Bearer …` at callout time, so nothing
 secret exists in Apex, in the log, or in a test.
+
+The budget is 1200 tokens, not 400, because `openai/gpt-oss-120b` is a reasoning
+model: part of the budget is spent on hidden reasoning before the JSON answer is
+written. At 400 the generation came back empty and Groq rejected it with
+`400 json_validate_failed`; 1200 leaves room for the reasoning and the answer.
+The header value is a formula, `{!'Bearer ' & $Credential.RIQ_LLM_API.apiKey}`,
+because text placed outside the `{! }` block is not evaluated — `Bearer
+{!$Credential…}` stays a literal and the provider sees an invalid key.
 
 The timeout comes from `Timeout_Seconds__c` (default 30s) and is set on the
 `HttpRequest`; callouts therefore cannot run past the 120-second synchronous
@@ -204,12 +212,12 @@ specific account id to target a record.
 
 | Symptom                                               | Cause                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| always `Rule-based`, log says 401                     | key wrong/expired, the parameter is not named exactly `apiKey`, or the key was pasted with `Bearer ` already in it                                                                                                                                                                                                                                                                               |
+| always `Rule-based`, log says 401                     | key wrong/expired, the parameter is not named exactly `apiKey`, the key was pasted with `Bearer ` already in it, or the header value is not a formula — it must be `{!'Bearer ' & $Credential.RIQ_LLM_API.apiKey}`, since `Bearer {!$Credential…}` is not evaluated                                                                                                                                     |
 | always `Rule-based`, log shows 429 with `Retry-After` | you are over the provider's free-tier rate limit; the app falls back on purpose and does not retry                                                                                                                                                                                                                                                                                               |
 | always `Rule-based`, log says 400                     | `Request_Path__c` and the provider disagree, or `Model_Name__c` is not a model that provider serves                                                                                                                                                                                                                                                                                              |
 | log says 403 / "principal access"                     | user lacks External Credential Principal Access                                                                                                                                                                                                                                                                                                                                                  |
 | log says 404                                          | `Request_Path__c` has a typo — it is appended verbatim to the Named Credential URL. If the path is right, the **model id is wrong or retired**: Groq answers `404 model_not_found`, and `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer <key>"` lists what the key can actually use. `llama-3.3-70b-versatile` was withdrawn; the shipped default is `openai/gpt-oss-120b` |
-| log says 400 `json_validate_failed`                   | JSON mode was requested but the model could not produce valid JSON in the token budget — raise `Max_Tokens__c` (400 works for `openai/gpt-oss-120b`)                                                                                                                                                                                                                                             |
+| log says 400 `json_validate_failed`                   | JSON mode was requested but the model could not produce valid JSON in the token budget — raise `Max_Tokens__c` (the shipped 1200 leaves room for the reasoning the model does before it writes the JSON; 400 was too small for `openai/gpt-oss-120b`)                                                                                                                                                                                                                                             |
 | nothing happens at all                                | `Is_Enabled__c` is still false                                                                                                                                                                                                                                                                                                                                                                   |
 | `AuraHandledException: You do not have permission`    | `RIQ_Generate_AI_Insight` not assigned                                                                                                                                                                                                                                                                                                                                                           |
 | works in one org, not another                         | `RIQ_LLM_API` points at a different base URL, or the config record differs                                                                                                                                                                                                                                                                                                                       |

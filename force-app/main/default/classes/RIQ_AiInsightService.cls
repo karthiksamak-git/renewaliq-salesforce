@@ -58,8 +58,12 @@ public with sharing class RIQ_AiInsightService {
         public String provider = 'Groq';
         /** Path appended to the Named Credential URL. */
         public String requestPath = DEFAULT_REQUEST_PATH;
-        /** Response token budget. */
-        public Integer maxTokens = 400;
+        /**
+         * Response token budget. Reasoning models spend part of this budget on
+         * hidden reasoning before writing the JSON answer, so a small value such
+         * as 400 leaves nothing for the answer and Groq rejects the empty output.
+         */
+        public Integer maxTokens = 1200;
         /** Callout timeout in seconds. */
         public Integer timeoutSeconds = 30;
         /** Fully resolved endpoint, including the named credential prefix. */
