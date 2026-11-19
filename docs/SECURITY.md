@@ -259,14 +259,19 @@ and scores them in one chunk, then runs the real nightly batch over the same
 book. Signals are inserted with the trigger bypassed, so the measurement is the
 calculation rather than the fixture.
 
-Observed on a real run:
+Measured by the test's own `Limits` counters, in the Developer Edition org on
+19 November 2026 (test run `707g800000xuTXCAA2`, from the Apex debug log):
 
-| Measurement                              | Observed       | Threshold in the test | Platform limit    |
-| ---------------------------------------- | -------------- | --------------------- | ----------------- |
-| SOQL statements, one 200-account chunk   | **4**          | 10                    | 100               |
-| DML statements, one 200-account chunk    | **2**          | 4                     | 150               |
-| CPU time, one 200-account chunk          | **1 642 ms**   | 10 000 ms             | 10 000 ms (sync)  |
-| Nightly batch, 200 accounts in one chunk | **915 ms** CPU | —                     | 60 000 ms (async) |
+| Measurement                              | Observed                              | Threshold in the test | Platform limit    |
+| ---------------------------------------- | ------------------------------------- | --------------------- | ----------------- |
+| SOQL statements, one 200-account chunk   | **4**                                 | 10                    | 100               |
+| DML statements, one 200-account chunk    | **2**                                 | 4                     | 150               |
+| CPU time, one 200-account chunk          | **1 431 ms**                          | 10 000 ms             | 10 000 ms (sync)  |
+| Nightly batch, 200 accounts in one chunk | 200 accounts scored, 200 history rows | —                     | 60 000 ms (async) |
+
+The batch row is a correctness assertion, not a timing one: the batch runs async and
+the test cannot see its `Limits` from outside, so its CPU time is **not re-measured**
+here and is not quoted.
 
 Four queries is the whole cost: accounts, signals, scoring rules, thresholds —
 all bulk, none per account. Two DML statements are the account update and the

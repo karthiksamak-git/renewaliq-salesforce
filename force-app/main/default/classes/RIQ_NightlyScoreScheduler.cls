@@ -48,11 +48,23 @@ public with sharing class RIQ_NightlyScoreScheduler implements Schedulable {
         ];
 
         for (CronTrigger job : existingJobs) {
-            try {
-                System.abortJob(job.Id);
-            } catch (Exception abortFailure) {
-                RIQ_Logger.warn('RIQ_NightlyScoreScheduler', 'Could not abort a previous job.', abortFailure);
-            }
+            abortQuietly(job.Id);
+        }
+    }
+
+    /**
+     * @description Aborts one job and swallows the failure. A job can disappear
+     * between the query and the abort (another admin cancelled it in Setup, or it
+     * just ran for the last time), and that must not stop the new schedule from
+     * being created.
+     * @param jobId CronTrigger id to abort.
+     */
+    @TestVisible
+    private static void abortQuietly(Id jobId) {
+        try {
+            System.abortJob(jobId);
+        } catch (Exception abortFailure) {
+            RIQ_Logger.warn('RIQ_NightlyScoreScheduler', 'Could not abort a previous job.', abortFailure);
         }
     }
 }

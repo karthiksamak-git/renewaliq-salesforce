@@ -154,6 +154,45 @@ describe('c-riq-health-score-card', () => {
     expect(element.shadowRoot.textContent).toContain('3 points · -28 over the window');
   });
 
+  it('captions the sparkline with how many recalculations it covers, and dates every point', async () => {
+    const element = await createCard();
+    getHealthCard.emit(CARD);
+    await flushPromises();
+
+    expect(element.shadowRoot.querySelector('.riq-sparkline__caption').textContent).toContain(
+      'Health score over the last 3 recalculations'
+    );
+
+    const points = element.shadowRoot.querySelectorAll('circle.riq-sparkline__point');
+    expect(points).toHaveLength(3);
+    expect(points[0].getAttribute('title')).toContain('70');
+    expect(points[0].getAttribute('title')).toContain('Oct 2026');
+    expect(points[2].getAttribute('title')).toContain('42');
+    expect(points[2].getAttribute('title')).toContain('Nov 2026');
+  });
+
+  it('labels the risk reasons as a bulleted list', async () => {
+    const element = await createCard();
+    getHealthCard.emit(CARD);
+    await flushPromises();
+
+    const label = element.shadowRoot.querySelector('.riq-insight__reasons-label');
+    expect(label.textContent).toContain('Risk reasons');
+
+    const reasons = element.shadowRoot.querySelectorAll('.riq-insight__reasons li');
+    expect(reasons).toHaveLength(2);
+    expect(reasons[0].textContent).toBe('Sponsor departed');
+  });
+
+  it('hides the Risk reasons label when the insight has none', async () => {
+    const element = await createCard();
+    getHealthCard.emit({ ...CARD, aiRiskReasons: [] });
+    await flushPromises();
+
+    expect(element.shadowRoot.querySelector('.riq-insight__reasons-label')).toBeNull();
+    expect(element.shadowRoot.querySelector('.riq-insight__reasons')).toBeNull();
+  });
+
   it('handles a card with no drivers or history', async () => {
     const element = await createCard();
     getHealthCard.emit({ ...CARD, score: null, status: 'Healthy', drivers: [], history: [] });

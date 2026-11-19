@@ -265,6 +265,7 @@ public with sharing class RIQ_PlaybookService {
      * @param tasks Tasks to insert.
      * @return Number inserted successfully.
      */
+    @TestVisible
     private static Integer insertTasks(List<Task> tasks) {
         if (tasks.isEmpty()) {
             return 0;
@@ -291,6 +292,7 @@ public with sharing class RIQ_PlaybookService {
      * @param opportunities Opportunities to insert.
      * @return Number inserted successfully.
      */
+    @TestVisible
     private static Integer insertOpportunities(List<Opportunity> opportunities) {
         if (opportunities.isEmpty()) {
             return 0;

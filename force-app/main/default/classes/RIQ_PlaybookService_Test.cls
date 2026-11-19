@@ -333,4 +333,47 @@ private class RIQ_PlaybookService_Test {
         System.assertEquals(0, result.tasksCreated);
         System.assertEquals(0, result.opportunitiesCreated);
     }
+
+    @IsTest
+    static void aRejectedTaskIsCountedAndNeverThrown() {
+        // One unsaveable task must not abort the batch: the other 199 accounts in
+        // the delivery still need their outreach. The insert is partial-save on
+        // purpose, and the failure is returned as a count.
+        Test.startTest();
+        Integer inserted = RIQ_PlaybookService.insertTasks(
+            new List<Task>{
+                new Task(
+                    Subject = RIQ_PlaybookService.TASK_SUBJECT_PREFIX + 'Orphan',
+                    WhatId = RIQ_TestDataFactory.nonExistentAccountId(),
+                    ActivityDate = Date.today(),
+                    Status = 'Not Started'
+                )
+            }
+        );
+        Test.stopTest();
+
+        System.assertEquals(0, inserted, 'A rejected task is counted, never thrown.');
+    }
+
+    @IsTest
+    static void aRejectedRenewalIsCountedAndNeverThrown() {
+        // Same contract for the renewal motion: a bad opportunity is a count, not
+        // an exception that rolls back every task created in the same delivery.
+        Test.startTest();
+        Integer inserted = RIQ_PlaybookService.insertOpportunities(
+            new List<Opportunity>{
+                new Opportunity(
+                    Name = 'Orphan Renewal',
+                    AccountId = RIQ_TestDataFactory.nonExistentAccountId(),
+                    Type = RIQ_PlaybookService.RENEWAL_OPPORTUNITY_TYPE,
+                    StageName = RIQ_PlaybookService.RENEWAL_STAGE,
+                    CloseDate = Date.today(),
+                    Amount = 1000
+                )
+            }
+        );
+        Test.stopTest();
+
+        System.assertEquals(0, inserted);
+    }
 }

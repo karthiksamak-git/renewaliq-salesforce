@@ -54,15 +54,35 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
      *         real status transitions that were published as platform events.
      */
     public static ProcessResult process(Set<Id> accountIds) {
+        return process(accountIds, RIQ_ScoringRuleProvider.getRules(), RIQ_ScoringRuleProvider.getThresholds());
+    }
+
+    /**
+     * @description The same recalculation with the configuration passed in.
+     * Scoring rules and thresholds arrive as parameters for the same reason
+     * RIQ_HealthScoreService takes them: a test can then describe a
+     * misconfiguration (every rule deactivated, a band that no longer matches
+     * the picklist) without editing the org's Custom Metadata. Production
+     * callers use the one-argument overload above.
+     *
+     * @param accountIds Accounts to re-score.
+     * @param rules Active scoring rules keyed by signal type.
+     * @param thresholds Status bands.
+     * @return Counts and the real status transitions for this transaction.
+     */
+    @TestVisible
+    private static ProcessResult process(
+        Set<Id> accountIds,
+        Map<String, RIQ_ScoringRule> rules,
+        List<RIQ_HealthThreshold> thresholds
+    ) {
         ProcessResult result = new ProcessResult();
 
         if (accountIds == null || accountIds.isEmpty()) {
             return result;
         }
 
-        Map<String, RIQ_ScoringRule> rules = RIQ_ScoringRuleProvider.getRules();
-
-        if (rules.isEmpty()) {
+        if (rules == null || rules.isEmpty()) {
             // Scoring with no rules would set every account to 100, which is
             // worse than leaving the previous score in place.
             RIQ_Logger.error(
@@ -82,7 +102,6 @@ public without sharing class RIQ_HealthScoreRecalculator implements Queueable {
         List<RIQ_Health_Signal__c> signals = new RIQ_HealthSignalSelector(AccessLevel.SYSTEM_MODE)
             .getByAccountIds(foundAccountIds);
         Map<Id, List<RIQ_Health_Signal__c>> signalsByAccount = groupByAccount(signals);
-        List<RIQ_HealthThreshold> thresholds = RIQ_ScoringRuleProvider.getThresholds();
         Date today = Date.today();
         DateTime calculatedOn = DateTime.now();
 

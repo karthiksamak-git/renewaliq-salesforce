@@ -7,6 +7,7 @@ import getHealthCard from '@salesforce/apex/RIQ_AccountHealthController.getHealt
 import recalculate from '@salesforce/apex/RIQ_AccountHealthController.recalculate';
 import generateInsight from '@salesforce/apex/RIQ_AccountHealthController.generateInsight';
 import {
+  buildSparklineCoordinates,
   buildSparklinePoints,
   daysLabel,
   formatDate,
@@ -268,6 +269,49 @@ export default class RiqHealthScoreCard extends LightningElement {
       240,
       56
     );
+  }
+
+  /**
+   * One marker per recalculation, carrying the native browser tooltip. The
+   * score alone is not enough context on a trend: a CSM needs the date the
+   * number was written.
+   */
+  get sparklineDots() {
+    if (!this.card || !this.card.history) {
+      return [];
+    }
+
+    const coordinates = buildSparklineCoordinates(
+      this.card.history.map((point) => point.score),
+      240,
+      56
+    );
+
+    return coordinates.map((point, index) => {
+      const entry = this.card.history[index] || {};
+
+      return {
+        key: `${entry.scoreDate}-${index}`,
+        cx: point.x,
+        cy: point.y,
+        tooltip: `${formatDate(entry.scoreDate)} · score ${point.score}`
+      };
+    });
+  }
+
+  /** Spells out what the x axis means: these are recalculation points, not days. */
+  get sparklineCaption() {
+    if (!this.card || !this.card.history || this.card.history.length === 0) {
+      return '';
+    }
+
+    const count = this.card.history.length;
+
+    return `Health score over the last ${count} recalculation${count === 1 ? '' : 's'}`;
+  }
+
+  get hasRiskReasons() {
+    return this.insightReasons.length > 0;
   }
 
   get historySummary() {

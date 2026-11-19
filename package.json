@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "RenewalIQ - Customer Health & Renewal Command Center on Salesforce",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "lint": "eslint force-app/main/default/lwc",
     "lint:fix": "eslint force-app/main/default/lwc --fix",

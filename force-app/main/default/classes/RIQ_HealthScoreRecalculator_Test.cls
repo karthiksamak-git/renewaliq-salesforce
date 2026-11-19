@@ -147,4 +147,99 @@ private class RIQ_HealthScoreRecalculator_Test {
         Account rescored = [SELECT RIQ_Health_Score__c FROM Account WHERE Id = :scoredAccount.Id];
         System.assertEquals(80, rescored.RIQ_Health_Score__c.intValue(), '10 * 2 = 20 points removed.');
     }
+
+    @IsTest
+    static void noActiveRulesLeavesTheLastScoreAlone() {
+        // The dangerous failure mode: scoring with zero rules subtracts nothing and
+        // writes 100 to every account, wiping a real book of business in one night.
+        // An admin who deactivates every rule must get "skipped", not "perfect".
+        List<Account> singleAccount = RIQ_TestDataFactory.createAccounts(1);
+        Account account = singleAccount[0];
+        account.RIQ_Health_Score__c = 42;
+        account.RIQ_Health_Status__c = 'At Risk';
+        update account;
+
+        Test.startTest();
+        RIQ_HealthScoreRecalculator.ProcessResult result = RIQ_HealthScoreRecalculator.process(
+            new Set<Id>{ account.Id },
+            new Map<String, RIQ_ScoringRule>(),
+            RIQ_TestDataFactory.testThresholds()
+        );
+        Test.stopTest();
+
+        Account untouched = [SELECT RIQ_Health_Score__c, RIQ_Health_Status__c FROM Account WHERE Id = :account.Id];
+        System.assertEquals(42, untouched.RIQ_Health_Score__c.intValue(), 'The previous score is kept.');
+        System.assertEquals('At Risk', untouched.RIQ_Health_Status__c);
+        System.assertEquals(0, result.processedCount, 'Nothing was scored.');
+        System.assertEquals(0, result.updatedCount);
+        System.assertEquals(0, [SELECT COUNT() FROM RIQ_Score_History__c], 'A skipped run writes no audit row.');
+    }
+
+    @IsTest
+    static void oneHundredFiftyBandChangesPublishInTwoChunks() {
+        // The publish cap is per call, so the recalculator batches events in
+        // hundreds. 150 transitions prove both the full chunk and the tail chunk
+        // are published - a dropped chunk is a renewal nobody picks up.
+        List<Account> accounts = RIQ_TestDataFactory.createAccounts(150);
+
+        for (Account account : accounts) {
+            account.RIQ_Health_Score__c = 92;
+            account.RIQ_Health_Status__c = 'Healthy';
+        }
+
+        update accounts;
+
+        RIQ_TriggerHandler.bypass('RIQ_HealthSignalTriggerHandler');
+        insert RIQ_TestDataFactory.buildSignalsForAccounts(
+            accounts,
+            RIQ_TestDataFactory.LOW_PRODUCT_USAGE,
+            2,
+            Date.today()
+        );
+        RIQ_TriggerHandler.clearBypass();
+
+        Test.startTest();
+        RIQ_HealthScoreRecalculator.ProcessResult result = RIQ_HealthScoreRecalculator.process(
+            new Map<Id, Account>(accounts).keySet()
+        );
+        Test.stopTest();
+
+        System.assertEquals(150, result.processedCount);
+        System.assertEquals(150, result.statusChangeCount, 'Every account moved from Healthy to Watch.');
+        System.assertEquals(0, result.eventFailureCount, 'Both the 100-event chunk and the 50-event tail landed.');
+        System.assertEquals(0, result.failureCount);
+        System.assertEquals(150, result.historyCount);
+    }
+
+    @IsTest
+    static void aBandThatDoesNotMatchTheHistoryPicklistIsCountedAsAFailure() {
+        // A band renamed in Custom Metadata without matching the picklist is a
+        // configuration mistake. It must be logged and counted, and it must not
+        // stop the other accounts in the same chunk from being scored.
+        List<Account> accounts = RIQ_TestDataFactory.createAccounts(2);
+        RIQ_TriggerHandler.bypass('RIQ_HealthSignalTriggerHandler');
+        insert RIQ_TestDataFactory.buildSignalsForAccounts(
+            accounts,
+            RIQ_TestDataFactory.SUPPORT_ESCALATION,
+            2,
+            Date.today()
+        );
+        RIQ_TriggerHandler.clearBypass();
+
+        List<RIQ_HealthThreshold> misconfigured = new List<RIQ_HealthThreshold>{
+            new RIQ_HealthThreshold('Legacy Band', 0)
+        };
+
+        Test.startTest();
+        RIQ_HealthScoreRecalculator.ProcessResult result = RIQ_HealthScoreRecalculator.process(
+            new Map<Id, Account>(accounts).keySet(),
+            RIQ_TestDataFactory.testRules(),
+            misconfigured
+        );
+        Test.stopTest();
+
+        System.assertEquals(2, result.processedCount, 'Both accounts were still scored.');
+        System.assertEquals(0, result.historyCount, 'The history picklist rejects an unknown band.');
+        System.assert(result.failureCount >= 1, 'The rejected history row is counted, never thrown.');
+    }
 }

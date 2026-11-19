@@ -1,5 +1,6 @@
 import {
   buildDonutSegments,
+  buildSparklineCoordinates,
   buildSparklinePoints,
   daysLabel,
   formatDate,
@@ -181,6 +182,31 @@ describe('riqUtils sparkline geometry', () => {
     expect(buildSparklinePoints([42], 200, 50)).toBe('0,25 200,25');
     expect(buildSparklinePoints([], 200, 50)).toBe('');
     expect(buildSparklinePoints(null)).toBe('');
+  });
+
+  it('places a marker on the same coordinates as the line it sits on', () => {
+    const coordinates = buildSparklineCoordinates([10, 20, 30], 200, 50);
+
+    expect(coordinates).toEqual([
+      { x: 0, y: 50, score: 10 },
+      { x: 100, y: 25, score: 20 },
+      { x: 200, y: 0, score: 30 }
+    ]);
+    expect(coordinates.map((point) => `${point.x},${point.y}`).join(' ')).toBe(
+      buildSparklinePoints([10, 20, 30], 200, 50)
+    );
+  });
+
+  it('centres a single marker and returns nothing for no data', () => {
+    expect(buildSparklineCoordinates([42], 200, 50)).toEqual([{ x: 100, y: 25, score: 42 }]);
+    expect(buildSparklineCoordinates([], 200, 50)).toEqual([]);
+    expect(buildSparklineCoordinates(null)).toEqual([]);
+  });
+
+  it('ignores values that are not numbers instead of drawing NaN', () => {
+    const scores = buildSparklineCoordinates(['7', 'nope', 3], 100, 10).map((point) => point.score);
+
+    expect(scores).toEqual([7, 3]);
   });
 });
 

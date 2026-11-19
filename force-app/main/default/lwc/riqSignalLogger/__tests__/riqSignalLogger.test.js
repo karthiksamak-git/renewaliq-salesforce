@@ -194,6 +194,13 @@ describe('c-riq-signal-logger', () => {
     );
   });
 
+  it('tells the user the context text stays on the record and is never sent to the AI', async () => {
+    const element = await createLogger();
+    const notes = field(element, 'lightning-textarea', 'notes');
+
+    expect(notes.fieldLevelHelp).toBe('Stored on the record, never sent to the AI.');
+  });
+
   it('resets to defaults when Clear is pressed', async () => {
     const element = await createLogger();
 

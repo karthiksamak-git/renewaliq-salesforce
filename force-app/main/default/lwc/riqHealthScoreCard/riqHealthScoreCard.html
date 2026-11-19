@@ -111,7 +111,18 @@
                   aria-label={historySummary}
                 >
                   <polyline class="riq-sparkline__line" points={sparklinePoints}></polyline>
+                  <template for:each={sparklineDots} for:item="dot">
+                    <circle
+                      key={dot.key}
+                      class="riq-sparkline__point"
+                      cx={dot.cx}
+                      cy={dot.cy}
+                      r="2.5"
+                      title={dot.tooltip}
+                    ></circle>
+                  </template>
                 </svg>
+                <p class="riq-sparkline__caption slds-text-body_small slds-text-color_weak">{sparklineCaption}</p>
                 <p class="slds-text-body_small slds-text-color_weak">{historySummary}</p>
               </template>
               <template if:false={hasHistory}>
@@ -178,7 +189,8 @@
                 </p>
               </template>
 
-              <template if:true={insightReasons}>
+              <template if:true={hasRiskReasons}>
+                <p class="riq-insight__reasons-label slds-text-title_caps slds-text-color_weak">Risk reasons</p>
                 <ul class="riq-insight__reasons">
                   <template for:each={insightReasons} for:item="reason">
                     <li key={reason}>{reason}</li>

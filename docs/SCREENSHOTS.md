@@ -3,6 +3,24 @@
 Screenshots for the portfolio write-up. Nothing here is captured automatically: each
 item says what has to be on screen, and any manual setup it needs.
 
+## Status: what is already committed
+
+Four images are in [`docs/screenshots/`](screenshots/) and referenced by the README. All
+four were reviewed on 19 November 2026 and contain no API key, auth URL, session id or
+personal data beyond the signed-in developer's own name in the org header.
+
+| File                        | What it actually shows                                                                                                                                                                                                 | State                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `command-center.png`        | Command Center, all owners: Total ARR **₹23.64 Cr**, ARR at risk **₹6.43 Cr**, **8** critical accounts, average score **64.3**, **21** renewals due in 90 days; donut 8 / 12 / 15 / 15; 8 at-risk rows sorted by score | Current                                                                            |
+| `account-ai-insight.png`    | MediSetu Diagnostics: score **13** / Critical, churn **84%**, ARR **₹12 L**, 57 days to renewal, top three drivers with points, and an **AI GENERATED** insight with next best action and reasons                      | **Predates the Phase 8 polish** — no sparkline caption and no "Risk reasons" label |
+| `account-signal-logger.png` | The log-a-signal form on the same account, with severity 3 and the date defaulted to today                                                                                                                             | **Predates the Phase 8 polish** — the context field's new help text is not visible |
+| `recent-errors.png`         | `RIQ_Log__c` list view filtered to errors, showing **0 items** ("Nothing to see here")                                                                                                                                 | Current, and deliberately empty: no error rows existed when it was taken           |
+
+To finish the set, re-capture items 5 and 6 below on an account with at least two
+recalculations, so the sparkline caption ("Health score over the last N recalculations"),
+the per-point date/score tooltip and the bulleted **Risk reasons** label are all visible.
+That requires a signed-in browser session, which is why it is on the manual list.
+
 > **All data in these screenshots is synthetic demo data for a portfolio project.**
 > The 50 accounts are invented Indian companies; no real customer, person or contract
 > appears anywhere in this org. Every figure on screen comes from a SOQL query against
@@ -129,9 +147,9 @@ sf org assign permset --name RIQ_Admin --target-org RenewalIQ
 ## What is _not_ verified in this repository
 
 The components were deployed to the org and their bundles compiled, and the behaviour is
-covered by 53 Jest tests (rendering, filters, sort, row action, recalculate, insight panel,
-validation, toast, subscribe/unsubscribe, empty and error states) plus the Apex tests behind
-them. Nobody has clicked through the rendered pages in a browser as part of the build, so
+covered by 71 Jest tests (rendering, filters, sort, row action, recalculate, insight panel,
+validation, toast, subscribe/unsubscribe, sparkline caption and tooltips, empty and error
+states) plus the 198 Apex tests behind them. Nobody has clicked through the rendered pages in a browser as part of the build, so
 the visual items above — gauge proportions, donut angles, sparkline shape, responsive
 wrapping, the insight panel's wrapping at narrow widths — are the ones to confirm when the
 screenshots are taken.

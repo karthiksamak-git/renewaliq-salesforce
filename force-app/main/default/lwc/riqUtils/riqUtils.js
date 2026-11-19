@@ -320,6 +320,39 @@ export function buildDonutSegments(slices, radius = 54) {
  * @param {number} height Drawing height.
  * @returns {string} Space separated "x,y" pairs; empty for no data.
  */
+/**
+ * Same geometry as buildSparklinePoints, but one object per point so a component
+ * can draw a marker and a date/score tooltip at each recalculation.
+ *
+ * @param {Array<number|string>} values Scores, oldest first.
+ * @param {number} width Viewbox width.
+ * @param {number} height Viewbox height.
+ * @returns {Array<{x: number, y: number, score: number}>} Points; empty when no
+ *          finite score exists.
+ */
+export function buildSparklineCoordinates(values, width = 240, height = 56) {
+  const numbers = (values || []).map(Number).filter((value) => Number.isFinite(value));
+
+  if (numbers.length === 0) {
+    return [];
+  }
+
+  if (numbers.length === 1) {
+    return [{ x: width / 2, y: height / 2, score: numbers[0] }];
+  }
+
+  const maximum = Math.max(...numbers);
+  const minimum = Math.min(...numbers);
+  const span = maximum - minimum || 1;
+  const step = width / (numbers.length - 1);
+
+  return numbers.map((score, index) => ({
+    x: Math.round(index * step * 100) / 100,
+    y: Math.round((height - ((score - minimum) / span) * height) * 100) / 100,
+    score
+  }));
+}
+
 export function buildSparklinePoints(values, width = 240, height = 56) {
   const numbers = (values || []).map(Number).filter((value) => Number.isFinite(value));
 

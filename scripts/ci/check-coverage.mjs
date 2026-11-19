@@ -9,13 +9,18 @@
  * Gates:
  *   - every test passes (and the run is not empty)
  *   - org-wide coverage >= 90%
- *   - no single class or trigger below 75% (the platform's deploy requirement)
+ *   - no single class or trigger below 85%
+ *
+ * The per-class gate was 75% (the platform's own deploy requirement) until Phase 8.
+ * Every class now sits at 90% or above in a real org run, so the gate holds the
+ * current floor instead of the platform minimum - a class that drops below 85%
+ * fails CI long before it would fail a deployment.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const MIN_ORG_WIDE = 90;
-const MIN_PER_CLASS = 75;
+const MIN_PER_CLASS = 85;
 const dir = process.argv[2] ?? 'test-results';
 
 let files;

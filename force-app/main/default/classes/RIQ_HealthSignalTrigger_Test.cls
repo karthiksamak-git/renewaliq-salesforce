@@ -170,4 +170,40 @@ private class RIQ_HealthSignalTrigger_Test {
         System.assertEquals(null, untouched.RIQ_Health_Score__c, 'Bypass must skip the whole handler.');
         System.assertEquals(0, [SELECT COUNT() FROM RIQ_Score_History__c]);
     }
+
+    @IsTest
+    static void fullQueueableQueueSkipsInsteadOfThrowing() {
+        // In a transaction that has already burned the queueable allowance (a data
+        // load, or a nested enqueue), the handler cannot score and must not throw:
+        // a thrown exception would roll back the signal the CSM just recorded.
+        // The skip is logged, and the nightly batch re-scores the book.
+        List<Account> accounts = RIQ_TestDataFactory.createAccounts(2);
+        Account target = accounts[0];
+        Account filler = accounts[1];
+
+        Test.startTest();
+
+        // Fill the queue to whatever is left of its allowance. Asking for one more
+        // is not an option: a queueable limit exception cannot be caught, so the
+        // test would end at the enqueue instead of reaching the handler.
+        Integer remaining = Limits.getLimitQueueableJobs() - Limits.getQueueableJobs();
+
+        for (Integer i = 0; i < remaining; i++) {
+            // OperationWithLimitsInLoop: exhausting the queueable allowance is the
+            // whole point of this test - it is the only way to reach the guard.
+            // prettier-ignore
+            System.enqueueJob(new RIQ_HealthScoreRecalculator(new Set<Id>{ filler.Id })); // NOPMD intentional limit exhaustion
+        }
+
+        insert RIQ_TestDataFactory.buildSignal(target.Id, RIQ_TestDataFactory.SUPPORT_ESCALATION, 5, Date.today());
+        Test.stopTest();
+
+        Account untouched = [SELECT RIQ_Health_Score__c FROM Account WHERE Id = :target.Id];
+        System.assertEquals(null, untouched.RIQ_Health_Score__c, 'Skipped, not thrown.');
+        System.assertEquals(
+            0,
+            [SELECT COUNT() FROM RIQ_Score_History__c WHERE Account__c = :target.Id],
+            'No score is written for the skipped account.'
+        );
+    }
 }

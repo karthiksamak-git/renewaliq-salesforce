@@ -107,6 +107,22 @@
   vector-effect: non-scaling-stroke;
 }
 
+.riq-sparkline__point {
+  fill: #0176d3;
+  stroke: #ffffff;
+  stroke-width: 1;
+  cursor: help;
+}
+
+.riq-sparkline__caption {
+  margin: 0.25rem 0 0;
+  font-style: italic;
+}
+
+.riq-insight__reasons-label {
+  margin: 0.75rem 0 0;
+}
+
 .riq-drivers {
   margin-top: 1rem;
   border-top: 1px solid #f3f2f2;

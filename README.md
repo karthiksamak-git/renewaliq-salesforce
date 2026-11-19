@@ -3,404 +3,236 @@
 [![CI](https://github.com/karthiksamak-git/renewaliq-salesforce/actions/workflows/ci.yml/badge.svg)](https://github.com/karthiksamak-git/renewaliq-salesforce/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Salesforce portfolio project that scores every customer Account's health (0–100)
-from configurable rules, predicts churn risk, creates renewal work automatically,
-and surfaces it all in an LWC dashboard for Customer Success Managers.
+A Salesforce application for the customer-success team of an Indian B2B SaaS company.
+It scores every customer account's health from 0 to 100, explains the number, predicts
+churn risk, and turns a worsening account into a task and a renewal opportunity before
+the renewal conversation happens — instead of after it.
 
-**Stack:** Salesforce DX (source format, API 62.0) · Apex (trigger handler +
-selector/service layers) · Custom Metadata driven rules · LWC + Jest · Queueable /
-Batch / Schedulable async · LLM callout for AI account summaries.
+**Built on:** Salesforce DX (source format, API 62.0) · Apex (trigger handler, selector
+and service layers) · Custom Metadata driven scoring rules · Lightning Web Components
+with Jest tests · Queueable / Batch / Schedulable async · Platform Events · Flow ·
+a Groq LLM callout behind a Named Credential · a REST endpoint for inbound signals.
 
-## Why this project exists
+> **Every account, signal and rupee amount on this page is synthetic demo data.** The
+> companies are invented. There are no real customers, no real contracts and no personal
+> data in this repository. All money is in Indian rupees (INR).
 
-Renewal risk is usually spotted too late, in a spreadsheet, after the customer has
-already decided to leave. RenewalIQ makes the score a first-class Salesforce field:
-every signal (escalation, usage drop, missed QBR, sponsor departure, late payment,
-detractor NPS, expansion) feeds a weighted, time-decayed score. Rules and
-thresholds live in Custom Metadata, so Customer Success ops can tune the model
-without a deployment.
+---
 
-## Architecture at a glance
+## The problem
 
-| Layer            | Responsibility                                    | Example                                                                |
-| ---------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
-| Trigger          | One per object, delegation only                   | `RIQ_HealthSignalTrigger`                                              |
-| Handler / Domain | Trigger context routing, record-level validation  | `RIQ_HealthSignalTriggerHandler`                                       |
-| Selector         | All SOQL for an SObject, `USER_MODE` by default   | `RIQ_HealthSignalSelector`                                             |
-| Service          | Business logic, bulk-safe, transaction boundaries | `RIQ_HealthScoreService`                                               |
-| Async            | Off-transaction work                              | `RIQ_HealthScoreRecalculator` (Queueable)                              |
-| Batch / Cron     | Whole-book recalculation, time-decayed scores     | `RIQ_NightlyScoreBatch`, `RIQ_NightlyScoreScheduler`                   |
-| Domain event     | "This account's band moved", after commit         | `RIQ_Health_Status_Change__e`                                          |
-| Subscriber       | Turns an event into work, idempotently            | `RIQ_PlaybookService`                                                  |
-| Declarative      | Notification + feed post, admin-editable          | `RIQ_Account_Critical_Alert` (Flow)                                    |
-| Config           | Thresholds and weights, no hardcoded numbers      | `RIQ_Scoring_Rule__mdt`, `RIQ_Threshold__mdt`, `RIQ_Batch_Config__mdt` |
-| UI               | LWC command center + record components            | `riqCommandCenter`, `riqHealthScoreCard`, `riqSignalLogger`            |
+A B2B SaaS customer-success manager in India carries a book of 40–80 accounts, each
+renewing on its own date and each worth ₹5 lakh to ₹4 crore a year. The early warning
+signs already exist — a P1 escalation, a drop in active users, a missed QBR, a champion
+who left, an invoice paid 40 days late — but they live in five different tools. By the
+time someone assembles them into a spreadsheet, the renewal is six weeks away and the
+customer has already shortlisted a competitor.
 
-### How the score is calculated
+The cost is not "bad customer experience". It is ARR: in this demo book, ₹6.43 crore of
+the ₹23.64 crore under management sits on accounts that are At Risk or Critical.
+
+## What it does, and why a CS team would pay for it
+
+| Business outcome                            | How RenewalIQ does it                                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One number per customer, agreed by everyone | A weighted, time-decayed score written to the Account by a single code path, so the dashboard, the record page and the nightly job cannot disagree                   |
+| The "why" is never a mystery                | Every recalculation stores the full driver breakdown as JSON, and the record page shows the top three with their point values                                        |
+| Risk becomes work, not a report             | A band change publishes a platform event; the subscriber creates an "Executive outreach" task for the owner and, inside 120 days, a renewal Opportunity sized at ARR |
+| No task spam                                | Playbook motions are idempotent across event replay and against work a CSM already created                                                                           |
+| Ops tunes the model without a developer     | Weights, decay windows and status bands are Custom Metadata records, editable in Setup                                                                               |
+| The number stays honest as time passes      | A nightly batch re-scores the whole book, because a signal from 90 days ago should hurt less today                                                                   |
+| An AI summary that can be trusted           | A written summary, next best action and risk reasons, badged **AI generated** or **Rule based** so a fallback is never mistaken for a model answer                   |
+| External tools feed the same pipeline       | `POST /services/apexrest/riq/v1/signals` upserts up to 200 signals per request, idempotently                                                                         |
+| Nothing fails silently                      | Logs are published as platform events and stored in their own transaction, so a line logged inside a rolled-back transaction still survives                          |
+
+## Screenshots
+
+All four are from the live Developer Edition org, on the synthetic demo book. No keys or
+auth URLs are visible in any of them.
+
+**Command Center** — the screen a CSM leaves open. Five KPIs (total ARR, ARR at risk,
+critical accounts, average score, renewals due), a status donut, and the at-risk table
+sorted lowest score first. A band change published by anyone toasts in live over empApi.
+
+![Command Center](docs/screenshots/command-center.png)
+
+**Account record page — AI insight** — gauge, status badge, churn probability, ARR in
+lakh/crore, the top three drivers with their point values, score trend, and a written
+insight badged **AI GENERATED** with its next best action and risk reasons.
+
+![Account health card with AI insight](docs/screenshots/account-ai-insight.png)
+
+**Account record page — signal logger** — the validated form a CSM uses to record an
+escalation, a usage drop or a missed QBR. Severity defaults to 3, the date cannot be in
+the future, and the context text is stored on the signal record only.
+
+![Signal logger](docs/screenshots/account-signal-logger.png)
+
+**Recent errors list view** — `RIQ_Log__c` filtered to errors, the operational side of
+the app. This shot is deliberately the _empty_ state: the suite finished cleanly, so the
+filtered list has 0 items. That is what "no silent failures" looks like when there are
+no failures.
+
+![Recent errors list view](docs/screenshots/recent-errors.png)
+
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph inbound[Where signals come from]
+        UI[riqSignalLogger<br/>LWC form]
+        API[POST /services/apexrest/riq/v1/signals<br/>up to 200, idempotent upsert]
+        SEED[scripts/apex/seed-data.apex<br/>synthetic book]
+    end
+
+    SIG[(RIQ_Health_Signal__c)]
+
+    UI --> SIG
+    API --> SIG
+    SEED --> SIG
+
+    TRG[RIQ_HealthSignalTrigger] -->|after insert / update / delete / undelete| HND[RIQ_HealthSignalTriggerHandler]
+    SIG --> TRG
+    HND -->|one job per transaction, deduplicated Account ids| Q[RIQ_HealthScoreRecalculator<br/>Queueable]
+
+    CRON[RIQ_NightlyScoreScheduler<br/>02:00 daily] --> BATCH[RIQ_NightlyScoreBatch]
+    BATCH --> ENGINE
+
+    Q --> ENGINE[RIQ_HealthScoreRecalculator.process<br/>the only writer of a score]
+    ENGINE --> SVC[RIQ_HealthScoreService<br/>pure: score, band, churn, drivers]
+    ENGINE --> ACC[(Account<br/>score · status · churn · last scored)]
+    ENGINE --> HIST[(RIQ_Score_History__c<br/>score + JSON drivers)]
+
+    ENGINE -->|band changed only| EV{{RIQ_Health_Status_Change__e<br/>platform event, after commit}}
+    EV --> SUB[RIQ_HealthStatusChangeTrigger<br/>named subscriber user]
+    SUB --> PB[RIQ_PlaybookService]
+    PB --> TASK[Task: Executive outreach]
+    PB --> OPP[Opportunity: Type = Renewal<br/>inside 120 days]
+    PB -.->|queued, never inline| AIQ[RIQ_AiInsightQueueable]
+
+    ACC --> FLOW[Flow: RIQ_Account_Critical_Alert]
+    FLOW --> NOTIF[Bell notification to owner's manager]
+    FLOW --> FEED[Chatter post on the account]
+
+    AIQ --> AIS[RIQ_AiInsightService]
+    AIS -->|callout:RIQ_LLM_API| NC[Named Credential + External Credential<br/>key lives in the org, never in code]
+    AIS -->|failure, timeout, 429, bad JSON| FALLBACK[Rule-based insight<br/>badged Rule based]
+
+    UI -->|RIQ_Score_Refresh message| CARD[riqHealthScoreCard<br/>refreshApex]
+    EV -->|empApi subscribe| DASH[riqCommandCenter<br/>live tiles + toast]
+
+    HND -.->|log events| LOG{{RIQ_Log_Event__e}}
+    ENGINE -.-> LOG
+    PB -.-> LOG
+    LOG --> LOGT[RIQ_LogEventTrigger] --> LOGTAB[(RIQ_Log__c)]
+
+    CFG[[Custom Metadata<br/>RIQ_Scoring_Rule · RIQ_Threshold · RIQ_Batch_Config · RIQ_AI_Config]] -.-> SVC
+    CFG -.-> BATCH
+    CFG -.-> AIS
+```
+
+## Data model
+
+```mermaid
+erDiagram
+    ACCOUNT ||--o{ RIQ_HEALTH_SIGNAL : "has evidence"
+    ACCOUNT ||--o{ RIQ_SCORE_HISTORY : "audit trail"
+    ACCOUNT ||--o{ TASK : "outreach"
+    ACCOUNT ||--o{ OPPORTUNITY : "renewal"
+
+    ACCOUNT {
+        number RIQ_Health_Score__c "0-100, system maintained"
+        picklist RIQ_Health_Status__c "Healthy / Watch / At Risk / Critical"
+        number RIQ_Churn_Probability__c "derived: score + renewal proximity"
+        currency RIQ_ARR__c "INR"
+        date RIQ_Contract_End_Date__c
+        datetime RIQ_Last_Scored__c
+        text RIQ_AI_Summary__c
+        text RIQ_AI_Risk_Reasons__c
+        picklist RIQ_AI_Source__c "AI / Rule-based"
+        datetime RIQ_AI_Generated_On__c
+    }
+
+    RIQ_HEALTH_SIGNAL {
+        text Signal_Type__c "matches a scoring rule"
+        number Severity__c "1-5"
+        date Occurred_On__c "decay is measured from here"
+        text RIQ_External_Key__c "unique: inbound idempotency"
+        number Weight_Override__c
+        text Notes__c "never sent to the AI"
+    }
+
+    RIQ_SCORE_HISTORY {
+        number Score__c
+        picklist Status__c
+        datetime Calculated_On__c
+        text Drivers__c "JSON of every contribution"
+    }
+
+    RIQ_SCORING_RULE {
+        text Signal_Type__c
+        number Base_Weight__c "negative = credit"
+        number Decay_Days__c
+        boolean Is_Active__c
+    }
+
+    RIQ_THRESHOLD {
+        text Status__c
+        number Min_Score__c
+    }
+
+    RIQ_LOG {
+        picklist Level__c
+        text Message__c "redacted, capped at 255"
+        text Source__c
+        text Stack_Trace__c
+        datetime Logged_At__c
+    }
+```
+
+`RIQ_Health_Signal__c` and `RIQ_Score_History__c` are master-detail to the Account;
+`RIQ_Scoring_Rule__mdt`, `RIQ_Threshold__mdt`, `RIQ_Batch_Config__mdt` and
+`RIQ_AI_Config__mdt` are configuration. `RIQ_Health_Status_Change__e` and
+`RIQ_Log_Event__e` are platform events and hold no permanent rows.
+
+The score itself:
 
 ```
 score = clamp(100 - Σ(baseWeight × severity × decayFactor), 0, 100)
 decayFactor = clamp(1 - daysSinceOccurred / decayDays, 0, 1)
 ```
 
-One formula covers everything: a penalty is a positive `Base_Weight__c`, a credit
-(such as Positive Expansion) is a negative one. The score is then banded by
-`RIQ_Threshold__mdt` (highest `Min_Score__c` first), and churn probability is
-derived from the score plus a renewal-proximity bonus. Every recalculation appends
-a `RIQ_Score_History__c` row whose `Drivers__c` JSON explains the number.
-
-Trigger → handler → `Queueable` → service: signals never calculate a score inline,
-so a 200-record load stays bulk-safe and well inside governor limits.
-
-## The automation layer (Phase 3)
-
-```
-RIQ_Health_Signal__c ──trigger──▶ Queueable ─┐
-                                            ├─▶ RIQ_HealthScoreRecalculator.process(Set<Id>)
-RIQ_NightlyScoreScheduler ─▶ Batch ─────────┘        │
-                                                     ├─▶ Account score/status/churn
-                                                     ├─▶ RIQ_Score_History__c
-                                                     └─▶ RIQ_Health_Status_Change__e (only on a real band change)
-                                                                  │
-                                                    RIQ_HealthStatusChangeTrigger (named subscriber user)
-                                                                  │
-                                                          RIQ_PlaybookService
-                                                            ├─▶ Task "Executive outreach: <account>"
-                                                            └─▶ Opportunity (Type = Renewal) when inside 120 days
-
-Account.RIQ_Health_Status__c ──▶ RIQ_Account_Critical_Alert (Flow)
-                                   ├─▶ Custom Notification to the owner's manager
-                                   └─▶ Chatter post on the account feed
-```
-
-### One code path
-
-`RIQ_HealthScoreRecalculator.process(Set<Id>)` is the only place a score is
-written. The Queueable (real-time), the nightly batch (time decay) and tests all
-call it and get back a `ProcessResult` with counts and the list of real band
-transitions. The Queueable is a three-line wrapper, so "the nightly number" and
-"the number you see after logging a signal" cannot disagree.
-
-### Events: what counts as a change
-
-`RIQ_Health_Status_Change__e` is high-volume and published **after commit**, so a
-rolled-back score never produces a task. It is published only when the band
-changes.
-
-**Decision: `null → status` publishes nothing.** A first score is a _baseline_,
-not a transition. Otherwise the first nightly run after a data load would fire one
-playbook per account and bury CSMs in executive-outreach tasks for customers
-nobody has judged yet. The baseline is still recorded in `RIQ_Score_History__c`;
-the automation starts at the first real move.
-
-Every transition is published, not just the bad ones, because the event is a
-domain statement ("the band moved"); deciding which transitions deserve work is
-the subscriber's job. `RIQ_PlaybookService` subscribes to `At Risk` and
-`Critical` only. `EventBus.publish` results are inspected and failures are counted,
-so a dropped event shows up in the run summary instead of disappearing.
-
-### What counts as a renewal Opportunity
-
-A renewal is **`Opportunity.Type = 'Renewal'` and still open (`IsClosed = false`)**.
-Nothing else suppresses the renewal motion, so an upsell in the pipeline cannot
-accidentally hide a missing renewal, and last term's closed renewal cannot either.
-The window is **contract end between today and today + 120 days, inclusive**.
-Already-expired contracts are deliberately excluded: they belong to a
-collections/win-back motion, not to a playbook whose value is the time left to act.
-CloseDate is the contract end date and Amount is `RIQ_ARR__c`.
-
-### Idempotency
-
-Platform events are delivered **at least once**, so every playbook motion is
-guarded twice:
-
-1. the event batch is collapsed to one event per account in memory;
-2. before creating anything, one SOQL loads all open `Executive outreach:` tasks
-   and all open `Type = 'Renewal'` opportunities for the accounts in the batch.
-
-A redelivered event therefore adds nothing. The guard is "is there already open
-work for this account", not a message id, which also covers the case where a CSM
-created that task by hand first.
-
-### Why the trigger runs as a named user
-
-By default a platform event trigger runs as **Automated Process**, so every Task
-and Opportunity it creates shows `Created By: Automated Process` — an audit
-dead end. `RIQ_HealthStatusChangeSubscriber` (a `PlatformEventSubscriberConfig`)
-sets the running user to a real named user and the batch size to 200. In a
-different org, change the `<user>` value to a username that exists there; it must
-be an active user.
-
-### Why this one piece is Flow
-
-The Critical alert is deliberately **declarative**: "when status becomes Critical,
-tell the owner's manager and post to the feed" is a notification policy, not
-business logic. A Flow lets Customer Success ops change the recipients, title or
-body, add a manager's manager, or turn it off, without a deployment or an Apex
-test cycle. The manager lookup is a Decision element with a no-manager branch, and
-both actions have **fault connectors**, so a missing manager, a missing
-notification type, or Chatter being unavailable can never roll back the score
-update. The feed post runs either way — only the bell notification needs a
-manager. Everything with real logic — scoring, banding, event publishing,
-idempotent task/opportunity creation — stays in Apex, where it is bulk-safe,
-testable and reviewable.
-
-## The Lightning layer (Phase 4)
-
-```
-riqCommandCenter   (App Page)      KPIs · status donut · at-risk datatable · row action
-riqHealthScoreCard (Account page)  gauge · badge · churn · top-3 drivers · 12-point trend
-riqSignalLogger    (Account page)  validated form → Apex → "score updating…" → refresh
-riqUtils           (utility module) pure formatting + SVG geometry, unit tested directly
-```
-
-Two Apex controllers sit behind them, and all three components go through them rather
-than through their own SOQL:
-
-| Method                                                        | Cacheable | Why                                                |
-| ------------------------------------------------------------- | --------- | -------------------------------------------------- |
-| `RIQ_DashboardController.getKpis(ownerId, renewalWindowDays)` | yes       | Pure read; the tile totals.                        |
-| `RIQ_DashboardController.getStatusDistribution(ownerId)`      | yes       | Pure read; one `GROUP BY` count, one row per band. |
-| `RIQ_DashboardController.getAtRiskAccounts(filters)`          | yes       | Pure read; server-side filter, sort and row cap.   |
-| `RIQ_AccountHealthController.getHealthCard(accountId)`        | yes       | Pure read; wired on the record page.               |
-| `RIQ_AccountHealthController.recalculate(accountId)`          | **no**    | It writes scores, history and possibly an event.   |
-| `RIQ_AccountHealthController.logSignal(...)`                  | **no**    | It inserts a signal.                               |
-
-### Aggregation belongs in the database
-
-Every number on the dashboard is a SOQL aggregate (`COUNT()`, `SUM()`, `AVG()`,
-`GROUP BY RIQ_Health_Status__c`) or a single flat query — never a query that loads 10,000
-accounts so Apex can add them up. That keeps the governor cost independent of the size of
-the book, and it means the KPI tile and the drill-down table are computed by the same
-engine that stores the data.
-
-### What the browser is allowed to decide
-
-The sort field is whitelisted in Apex (`SORT_FIELDS` map), the row count and renewal
-window are clamped server-side (50/200 rows, 730 days), and the status filter treats
-`All` as "At Risk + Critical" rather than "everything". Nothing from the client becomes
-a `Database.query` string.
-
-### Permissions are enforced twice
-
-`Recalculate` and `Log signal` are guarded by **Custom Permissions**
-(`RIQ_Recalculate_Health`, `RIQ_Log_Health_Signals`) checked with
-`FeatureManagement.checkPermission` inside the controller. `RIQ_Read_Only` therefore gets
-a friendly `AuraHandledException` if it calls the method directly — hiding a button in the
-component is a convenience for the user, never the control.
-
-### Charts without a CDN
-
-Chart.js 4.6.1 is a `devDependency`, and its UMD build is copied into the `chartjs`
-static resource and loaded with `loadScript`. Under Lightning Web Security the global can
-be hidden from the component, so if `loadScript` fails or `window.Chart` is missing the
-component renders a **pure SVG donut** built from the same segments by `riqUtils`. There
-is no blank panel and no third-party request at runtime.
-
-### Honest async
-
-Logging a signal queues a `Queueable`, so the score cannot be new the instant the form
-submits. `riqSignalLogger` says so: it shows a "Score updating…" state, then publishes on
-the `RIQ_Score_Refresh__c` Lightning Message channel; `riqHealthScoreCard` listens and
-calls `refreshApex` on its wired result. A score that silently changed would be worse than
-one that is visibly a few seconds behind.
-
-`riqCommandCenter` also subscribes to `/event/RIQ_Health_Status_Change__e` with empApi, so
-a band change from anyone's action toasts in and refreshes the tiles — and
-`disconnectedCallback` unsubscribes, because a leaked empApi subscription keeps firing
-against a destroyed component.
-
-### Testing the UI
-
-64 Jest tests: the pure helpers directly (donut geometry, sparkline scaling, gauge arc,
-currency/percent/days formatting), and each component through its rendered shadow DOM —
-loading, empty and error states, filter changes reaching Apex with the right arguments,
-datatable sort mapping, the row action, toasts, validation blocking submission, the
-"score updating" state, empApi subscribe/unsubscribe, the Chart.js fallback, and the
-insight panel (stored summary, empty state, generate, refusal, permission-hidden button).
-
-## The integration layer (Phase 5)
-
-RenewalIQ integrates in two directions, and both are optional: with no API key and
-no inbound caller, every screen still works.
-
-**Outbound — a written insight per account.** `RIQ_AiInsightService` builds a
-deterministic prompt from the score, the status, the top five drivers, the ten most
-recent signals, ARR and the contract end date, and asks a language model for a
-summary, a next best action and up to three risk reasons as JSON. The provider is
-**Groq** (`https://api.groq.com`, `/openai/v1/chat/completions`, OpenAI-compatible),
-reached through a **Named Credential** (`RIQ_LLM_API`) over an **External Credential**
-whose custom `Authorization: Bearer …` header is filled from the org's protected
-credential store, so no key exists in code, metadata, tests, documentation or git. An
-`RIQ_AI_Config__mdt` record decides whether the callout happens at all — it ships
-**disabled**, so the project is reproducible without anyone's key — and holds the
-provider, request path, model name, token cap and timeout, which means switching model
-or provider is an admin edit, not a deployment.
-
-The request is an OpenAI-style chat completion (system instruction, user message,
-`temperature: 0.2`, JSON mode) and the answer is treated as hostile input: code
-fences are stripped, `choices[0].message.content` is read, missing fields are repaired
-and lengths are capped. Timeout, 429 (where `Retry-After` is logged but never waited
-on), 5xx, 400/401, empty or malformed content all land in the same place — a **rule-based insight** built from the score, drivers and signals, stored
-with `RIQ_AI_Source__c = 'Rule-based'` and shown with a **Rule based** badge instead
-of **AI generated**. The user never sees a raw error or an HTTP status, and a
-fallback can never be mistaken for a model answer.
-
-No callout runs inside a trigger, a batch, or after uncommitted DML. The record-page
-button calls the service first and then performs one update; the playbook path
-enqueues `RIQ_AiInsightQueueable`, which processes three accounts per job and chains
-the rest, so a 200-account run becomes short jobs instead of one that dies at the
-async limit.
-
-**Inbound — `POST /services/apexrest/riq/v1/signals`.** Up to 200 signals per
-request, with `externalId` as the idempotency key upserted onto a unique external-id
-field, so a retry updates instead of duplicating. Partial success is HTTP 200 with a
-per-row result array (`created` / `updated` / `skipped` / `error`); 400 is reserved
-for a body that cannot be read, 413 for more than 200 items. The resource is
-`with sharing` and runs in `USER_MODE` end to end, with a dedicated
-`RIQ_Integration_User` permission set as the caller's ceiling. Writing a signal
-through the API fires the same trigger path as logging one in the UI — there is no
-second write path.
-
-Details, including the exact setup steps for the credential, the provider switch and
-the curl/authentication walkthrough, are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
-and [docs/API.md](docs/API.md).
-
-## India-ready
-
-The org runs on INR, locale `en_IN` and `Asia/Kolkata`, so every number and timestamp is
-rendered the way an Indian customer success team reads it. That is a formatting
-concern, not a storage one: money stays a Salesforce Currency field (INR), and the
-display rules live in two small, tested places.
-
-| Layer | Helper                                               | Rule                                                                                      |
-| ----- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| LWC   | `riqUtils.formatInr(value)`                          | `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })` — `₹12,50,000`       |
-| LWC   | `riqUtils.formatInrCompact(value)`                   | below ₹1 L the full amount, ₹1 L to under ₹1 Cr as `12.5 L`, ₹1 Cr and above as `4.25 Cr` |
-| Apex  | `RIQ_CurrencyFormatter.formatInr / formatInrCompact` | the same rules, hand-written because **Apex has no `Intl`**                               |
-
-The compaction truncates instead of rounding up, so ₹99,99,999 shows as `₹99.9 L` and
-never as a crore that does not exist. KPI tiles show the compact form with the exact
-rupee amount on hover, the table's ARR column is headed **ARR (INR)**, and the
-rule-based insight and the model prompt both speak in lakh and crore (the prompt
-explicitly forbids `$`, and a test asserts it).
-
-Timestamps go through `riqUtils.formatDateTime`, which formats with an explicit
-`timeZone: 'Asia/Kolkata'` and a zone name — so a reviewer in another country still
-sees IST, and no raw ISO string (or US month/day order) reaches the page.
-
-All 50 accounts in this org are **synthetic demo data for a portfolio project**:
-invented Indian companies across fintech, edtech, logistics, manufacturing,
-healthcare, retail, IT services and D2C, in eight cities, with ARR from ₹5 L to
-₹4.8 Cr. The seed script never writes a score — it logs signals and calls the same
-engine the nightly batch uses, so the Health / Watch / At Risk / Critical split is
-produced by the model, not asserted by the fixture.
-
-## Security, logging and quality (Phase 6)
-
-The app is a portfolio project, but it is built as if a stolen token were the
-threat: every mutation checks a Custom Permission on the server, every read runs
-in `USER_MODE`, and the browser is never trusted to decide anything. The full
-model — access modes and why each one is used, the findings table, the permission
-matrix, the persona audit and the accepted static-analysis suppressions — is in
-**[docs/SECURITY.md](docs/SECURITY.md)**.
-
-Three pieces are worth calling out here.
-
-**Logs that survive the failure.** `RIQ_Logger` publishes `RIQ_Log_Event__e`, a
-platform event defined with _Publish Immediately_, and a subscriber trigger writes
-`RIQ_Log__c` in its own transaction. A line logged inside a transaction that then
-rolls back is still stored — which is the only kind of log that matters when
-something breaks. Payloads are redacted (provider keys, bearer tokens, email
-addresses, phone numbers) and capped at 255 characters, the platform-event text
-limit. Retention is 30 days by default, configurable in `RIQ Batch Config`, and
-enforced nightly by `RIQ_LogCleanupBatch`.
-
-**Static analysis that gates the build.** PMD runs through Salesforce Code
-Analyzer v5 with `config/pmd-ruleset.xml` covering the security, performance and
-error-prone categories. Current result: **0 violations**. Every suppression is an
-inline `// NOPMD` with a reason, listed in `docs/SECURITY.md`. Running it found two
-real defects — a SOQL query and a DML inside a loop, and eight id literals in
-tests.
-
-**Measured performance, not claimed.** 200 accounts with 3 000 signals score in
-one chunk with **4 SOQL statements, 2 DML statements and 1 642 ms of CPU**, against
-budgets of 10 / 4 / 10 000 in `RIQ_Performance_Test`. The assertion is an order of
-magnitude below the platform limit, so a regression fails the suite instead of
-half-scoring a book of business in production.
-
-## Flow vs Apex vs Platform Events vs Batch: when to use what
-
-| Tool                       | Use it when                                                                                                                                                                                                           | Not for                                                                                                                                           | In RenewalIQ                                                                                           |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Record-triggered Flow**  | The rule is simple, declarative, and an admin should be able to change it without a deployment: notifications, feed posts, field defaults, simple field updates. No loops over related records, no external callouts. | Bulk logic over related records, anything needing a test harness or a transaction boundary, anything that must be idempotent across retries.      | `RIQ_Account_Critical_Alert` — bell notification to the manager + Chatter post.                        |
-| **Apex trigger + handler** | Durable business rules on the same object, bulk data, cross-object logic that must be correct for 200 records at once, anything with tests and coverage.                                                              | Sending notifications nobody can tune; anything an admin will want to change weekly.                                                              | `RIQ_HealthSignalTrigger` (queue a recalculation), `RIQ_HealthStatusChangeTrigger` (run the playbook). |
-| **Platform Event**         | The producer should not know the consumers: one fact, many independent reactions, and the work must happen **after commit** so a rollback leaves no orphan task. Also the seam for external systems.                  | Request/response, ordered state changes, anything needing a guaranteed exactly-once semantic (events are at-least-once — design for idempotency). | `RIQ_Health_Status_Change__e` published by the scorer; consumed by the playbook.                       |
-| **Batch Apex**             | Whole-dataset work that must be chunked: nightly recalculation, data migration, anything that would blow synchronous limits.                                                                                          | A single record's immediate reaction — that is a trigger or a Queueable.                                                                          | `RIQ_NightlyScoreBatch`, because scores decay with time even when nothing is edited.                   |
-| **Queueable**              | One transaction's follow-on work: move it off the user's request, keep a retry boundary, chain the next step.                                                                                                         | Huge volumes (use Batch) or a fixed clock (use Schedulable + Batch).                                                                              | `RIQ_HealthScoreRecalculator` — off-transaction re-score after a signal.                               |
-| **Schedulable**            | "Every night at 2 AM" — the clock itself. Keep it thin: it should only launch the batch.                                                                                                                              | Business logic (unbatchable, no scope, hard to test).                                                                                             | `RIQ_NightlyScoreScheduler.scheduleNightly()`.                                                         |
-
-Rule of thumb: **Flow for policy, Apex for rules, events for decoupling, batch for
-volume, Queueable for latency, Schedulable for the clock.**
-
-## Data model
-
-See [docs/DATA_MODEL.md](docs/DATA_MODEL.md) for fields, relationships, and the
-scoring-rule contract.
-
-## CI/CD and one-command setup (Phase 7)
-
-Two workflows, and both gate on evidence rather than on a happy path.
-
-**`ci.yml` — every push and pull request.** A fast job runs ESLint, Prettier over Apex,
-XML, LWC, Markdown and YAML (on Linux, because the Apex parser's native binary is
-blocked by Device Guard on the author's Windows machine), and Jest with coverage. A
-second job then creates a **fresh scratch org** from `config/project-scratch-def.json`,
-deploys the project, assigns all five permission sets, loads the synthetic demo book,
-runs **every** Apex test, fails if org-wide coverage is below **90%** or any class is
-below 75%, runs PMD through Code Analyzer, and deletes the org in an `if: always()`
-step. A pull request from a fork cannot read repository secrets, so that job skips
-itself with a visible reason and the lint/Jest job still runs.
-
-**`validate-dev-org.yml` — push to `main`.** A check-only (`--dry-run`) deployment to
-the long-lived Developer Edition org, with local tests, against a second optional
-secret. It proves the same commit still fits the org that has the real data, the stored
-key and the scheduled jobs. Nothing is written to that org.
-
-Authentication is one GitHub secret, `SFDX_AUTH_URL`, holding Salesforce's `force://`
-auth URL. The workflow writes it to a `mktemp` file with mode 600, logs in with
-`--sfdx-url-file`, and deletes the file in the same step; the value is never echoed and
-never becomes a command-line argument. Details, the Developer Edition Dev Hub limits,
-and the troubleshooting I hit are in **[docs/CI.md](docs/CI.md)**.
-
-For a reviewer, setup is one command — `./scripts/setup.sh` or
-`powershell -File scripts/setup.ps1` — which is idempotent, checks its prerequisites,
-and prints what to click first.
-
-## Roadmap
-
-| Phase | Scope                                                            | Status |
-| ----- | ---------------------------------------------------------------- | ------ |
-| 1     | Project scaffold, data model, permission sets, seed data         | ✅     |
-| 2     | Health scoring engine + score history                            | ✅     |
-| 3     | Nightly batch, platform events, playbook automation              | ✅     |
-| 4     | LWC dashboard + Jest tests                                       | ✅     |
-| 5     | LLM callout (Named/External Credential), inbound signal REST API | ✅     |
-| 6     | Security review: sharing, CRUD/FLS, injection, secret handling   | ✅     |
-| 7     | CI/CD on scratch orgs, one-command setup, repo hygiene           | ✅     |
-
-## Quick start in 5 minutes
-
-You need the Salesforce CLI, Node.js 18+ and Git. No API key: the AI summaries ship
-disabled and everything else works without one.
-
-### Option A — one command, on a fresh scratch org
+One formula covers penalties and credits — a credit such as Positive Expansion is simply
+a negative `Base_Weight__c` — and churn probability is derived from the score plus a
+renewal-proximity bonus.
+
+## Design decisions
+
+| Decision                                    | What was chosen                                                                                                           | Why                                                                                                                                                                                                  | What it costs                                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Queueable vs Batch**                      | Queueable for one transaction's follow-on re-score; Batch for the nightly whole-book pass                                 | The Queueable moves scoring out of the user's request and gives it a retry boundary; only Batch can chunk a book of accounts and re-score accounts nobody touched                                    | Two entry points, both delegating to one `process()` so they cannot drift                                                                |
+| **Custom Metadata for rules**               | `RIQ_Scoring_Rule__mdt`, `RIQ_Threshold__mdt`, `RIQ_Batch_Config__mdt`, `RIQ_AI_Config__mdt`                              | Deployable configuration that travels with the code; cached per transaction; ops edits it in Setup without a deployment                                                                              | Every CMDT read is a query unless cached — hence a static cache in `RIQ_ScoringRuleProvider`                                             |
+| **Platform Events for the band change**     | `RIQ_Health_Status_Change__e`, publish-after-commit                                                                       | The scorer should not know its consumers; a rolled-back score must not leave an orphan task; new consumers subscribe without editing the scorer                                                      | At-least-once delivery, so every consumer must be idempotent — the playbook is, twice over                                               |
+| **Named + External Credential for the LLM** | `RIQ_LLM_API` secured endpoint; the key is an External Credential principal parameter                                     | The secret lives in the org's protected store and is never readable by Apex, so it cannot leak into a log, a test or git                                                                             | Setup is a manual step per org; a scratch org has no key until one is stored                                                             |
+| **USER_MODE vs SYSTEM_MODE**                | Selectors and controllers default to `USER_MODE`; the scorer and playbook opt into `SYSTEM_MODE` explicitly               | Score fields are read-only for CSMs, so writing them under the triggering user's permissions would fail for exactly the person logging a signal; the ids come from records that user already touched | The exception is a decision to review, so it is written as `AccessLevel.SYSTEM_MODE` in the code rather than hidden in `without sharing` |
+| **Flow vs Apex**                            | The Critical alert is a record-triggered Flow; everything with rules is Apex                                              | "When it goes Critical, tell the manager and post to the feed" is notification policy an admin should change without a deployment                                                                    | Flow logic is harder to unit test, so it carries fault connectors instead                                                                |
+| **Rule-based fallback**                     | Every AI failure — timeout, 429, 5xx, empty or malformed content — produces a deterministic summary badged **Rule based** | A user must never see a raw HTTP status, and a fallback must never be indistinguishable from a model answer                                                                                          | Two code paths to maintain, and the badge is a promise the UI has to keep                                                                |
+
+**Rule of thumb:** Flow for policy, Apex for rules, events for decoupling, Batch for
+volume, Queueable for latency, Schedulable for the clock.
+
+## Quick start
+
+You need the Salesforce CLI, Node.js 22 or newer (the CLI dropped support for older
+runtimes) and Git. **No API key is required** — the AI insight ships disabled and
+everything else works without one.
+
+### Option A — one command, fresh scratch org
 
 ```bash
 git clone https://github.com/karthiksamak-git/renewaliq-salesforce.git
 cd renewaliq-salesforce
 sf org login web --set-default-dev-hub --alias devhub   # once, if you have no Dev Hub
-export JAVA_HOME=...                                    # only for PMD and Apex formatting
 ./scripts/setup.sh                                      # macOS / Linux
 ```
 
@@ -412,17 +244,18 @@ powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
 ```
 
 The script creates a scratch org from `config/project-scratch-def.json`, deploys the
-project, assigns all five permission sets, loads the 50-account synthetic demo book,
-scores it through the real engine, runs the nightly batch once, schedules both jobs
-and opens the org. It is idempotent — running it twice reuses the org instead of
-burning another scratch org — and it exits non-zero on the first real failure instead
-of carrying on.
+project, assigns all five permission sets, renders the platform-event subscriber config
+for that org's user, loads the synthetic demo book, scores it through the real engine,
+runs the nightly batch once, schedules both jobs and opens the org. It is idempotent — a
+second run reuses the org instead of burning another scratch org.
 
 Then: **App Launcher → RenewalIQ**. The Command Center is the app's landing tab.
 
-Clean up with `sf org delete scratch --target-org renewaliq --no-prompt`.
+```bash
+sf org delete scratch --target-org renewaliq --no-prompt   # clean up
+```
 
-### Option B — a Developer Edition org, by hand
+### Option B — an existing Developer Edition org, by hand
 
 ```bash
 npm install
@@ -439,29 +272,135 @@ sf apex run --file scripts/apex/run-nightly-batch.apex --target-org RenewalIQ
 sf apex run --file scripts/apex/schedule-jobs.apex     --target-org RenewalIQ
 ```
 
-`scripts/apex/reset-demo-data.apex` deletes only the records these scripts created, so
-the book can be reset without touching anything else.
+`scripts/apex/reset-demo-data.apex` deletes only the records these scripts created, so the
+book can be reset without touching anything else.
 
-### Developer Edition caveats (the ones that actually bite)
+**Developer Edition caveats that actually bite**
 
-- **Two Standard licences.** A Developer Edition org has two, both usually taken (yours
-  and one other user). You cannot create extra users to test the Read-Only or CSM
-  personas — assign `RIQ_Read_Only` to the second user and use **Log in as User**.
-- **The app is invisible until a permission set grants it.** `RIQ_Admin`, `RIQ_CSM` and
-  `RIQ_Read_Only` each carry `applicationVisibilities` for RenewalIQ; a user with none of
-  them sees no tile in the App Launcher. That is the design, not a bug.
-- **Scheduled jobs block deployments.** `RIQ Nightly Health Score` and
-  `RIQ Log Retention Cleanup` make any deploy that touches those classes fail with
-  "jobs pending or in progress". Abort → deploy → reschedule with the three scripts in
-  `scripts/apex/`; `docs/CI.md` has the exact commands.
-- **The event subscriber config is generated, not committed.**
-  `PlatformEventSubscriberConfig` names the user the trigger runs as, and a username
-  only exists in one org. `config/platform-event/*.template` is rendered with the
-  org's own username by the setup scripts. Without it everything still works; Tasks
-  just show `Created By: Automated Process`.
-- **A scratch org has no Groq key.** The AI panel shows a rule-based summary with a
-  **Rule based** badge until you store a key in the External Credential principal and
-  tick **Is Enabled** on the `RIQ AI Config` record. See `docs/INTEGRATIONS.md`.
+- **Two Standard licences.** Both are usually taken, so you cannot create extra users to
+  test the Read-Only persona — assign `RIQ_Read_Only` to the second user and use **Log in
+  as User**.
+- **The app is invisible until a permission set grants it.** That is the design.
+- **Scheduled jobs block deployments.** Abort with `scripts/apex/abort-scheduled-jobs.apex`,
+  deploy, then re-run `scripts/apex/schedule-jobs.apex`.
+- **A scratch org has no Groq key.** The panel shows a **Rule based** summary until you
+  store a key in the External Credential principal and tick **Is Enabled** on the
+  `RIQ AI Config` record.
+- **A fresh Developer Edition ships sample Accounts.** They have no RenewalIQ fields set
+  and are not part of the demo book; only the accounts the seed script creates are scored.
+
+## Test strategy, and the evidence for it
+
+The strategy is "test the thing that would break in production, in the shape it breaks
+in". Concretely:
+
+- **Apex, against a real org.** Every number below comes from a `RunLocalTests` execution
+  against the Developer Edition org on 19 November 2026, not from a mock.
+- **Bulk first.** `RIQ_HealthSignalTrigger_Test` inserts 200 signals across 200 accounts in
+  one transaction and asserts one history row per account; `RIQ_PlaybookService_Test`
+  publishes and delivers 200 events and asserts 200 tasks and 200 renewal opportunities;
+  the nightly batch is tested with 201 accounts across two chunks.
+- **Edge cases as behaviour, not padding.** A first score (null → band) publishes nothing;
+  a signal whose type has no active rule contributes nothing; a band that no longer matches
+  the picklist is counted as a failure instead of throwing; deactivating every rule leaves
+  the last score alone instead of setting everyone to 100; a full queueable queue skips
+  loudly instead of rolling back the signal the CSM just saved.
+- **Idempotency is asserted twice**: redelivering the same event and pre-existing open work
+  both create nothing.
+- **The UI is tested in a shadow DOM.** 71 Jest tests across 4 suites drive the components
+  through rendered DOM: filters reaching Apex with the right arguments, validation blocking
+  submission, the "score updating" state and its later refresh message, empApi
+  subscribe/unsubscribe, the Chart.js fallback donut, and the sparkline caption and
+  per-point tooltips. Jest proves behaviour, not appearance.
+- **Static analysis gates the build.** PMD via Salesforce Code Analyzer, security,
+  performance and error-prone categories: **0 violations** in this session after two
+  documented inline suppressions, each with its reason in `docs/SECURITY.md`.
+
+Measured on 19 November 2026 against `RenewalIQ` (org `00Dg800000A02p2EAB`):
+
+| Evidence                      | Result                                                                                                                                               |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apex tests                    | **198 run, 0 failing, 100% pass**                                                                                                                    |
+| Org-wide coverage             | **92%** of 1,927 lines (test-run coverage 94%)                                                                                                       |
+| Lowest-covered class          | **90%** — `RIQ_AccountHealthController` (175/195), `RIQ_AiInsightQueueable` (69/77)                                                                  |
+| Classes closed out in Phase 8 | `RIQ_NightlyScoreScheduler` **100%**, `RIQ_HealthSignalTriggerHandler` **97%**, `RIQ_PlaybookService` **96%**, `RIQ_HealthScoreRecalculator` **92%** |
+| Jest                          | **71 tests, 4 suites, 0 failing**                                                                                                                    |
+| PMD (Code Analyzer)           | **0 violations**                                                                                                                                     |
+| CI gate                       | org-wide **≥90%** and **no class below 85%** (`scripts/ci/check-coverage.mjs`)                                                                       |
+| Demo book                     | 50 RenewalIQ accounts (plus 20 stock Developer Edition sample Accounts, unscored), 162 health signals, 206 score-history rows, 6 log rows            |
+
+CI runs the same suite in a fresh scratch org on every push, then runs PMD, then deletes
+the org. See `docs/CI.md`.
+
+## Security model, in one page
+
+Built as if a stolen session token were the threat, not as if the user were trusted.
+
+- **Two layers on every mutation.** `Recalculate` and `Log signal` check a Custom
+  Permission (`RIQ_Recalculate_Health`, `RIQ_Log_Health_Signals`) with
+  `FeatureManagement.checkPermission` inside Apex. Hiding the button is a convenience;
+  the check is the control.
+- **`USER_MODE` by default.** Every selector and controller query enforces sharing, CRUD
+  and FLS unless it explicitly opts out, and the two opt-outs are documented decisions.
+- **No secret in the repository.** The LLM key is an External Credential parameter stored
+  in the org. A grep for key-shaped strings across the working tree and the full git
+  history finds nothing, and the test suite uses `HttpCalloutMock`, so it never touches
+  the network.
+- **Log redaction.** `RIQ_Logger` strips bearer tokens, provider keys, email addresses and
+  phone numbers, and caps messages at the 255-character platform-event limit.
+- **CI authentication.** One GitHub secret holds the `force://` auth URL; the workflow
+  writes it to a `mktemp` file with mode 600, logs in with `--sfdx-url-file`, and deletes
+  it in the same step. It is never echoed and never becomes a command-line argument.
+- **The inbound API is a `with sharing` resource in `USER_MODE`**, with
+  `RIQ_Integration_User` as the caller's ceiling, a unique external id as the idempotency
+  key, and 400/413 reserved for unreadable or oversized bodies.
+
+The full model — access modes, permission matrix, findings, accepted suppressions — is in
+[docs/SECURITY.md](docs/SECURITY.md).
+
+## Known limitations
+
+Honest list, not a wish list:
+
+1. **The signal logger refreshes on a bounded timer, not an event.** Logging a signal
+   enqueues a Queueable, so the score cannot be new the instant the form submits. The
+   component shows "Score updating…", waits 4 seconds, then publishes on the
+   `RIQ_Score_Refresh__c` message channel. If the queue is slow, the card refreshes with
+   the old number and the user has to press **Recalculate now** or wait for the next
+   refresh. A message published by the Queueable at the end of its run would be strictly
+   better.
+2. **Developer Edition licence limits.** Two Standard licences, a handful of scratch orgs
+   per day, and no ability to create personas freely. The Read-Only and CSM personas are
+   tested in Apex and by "Log in as User", not by a real second human.
+3. **All demo accounts are owned by one user in a single-user org.** The owner filter, the
+   manager lookup in the Flow and the task assignment all work, but they have never been
+   exercised with two CSMs holding separate books — "my vs their accounts" is untested at
+   the sharing level.
+4. **Live AI needs your own Groq key**, stored in the External Credential principal, plus
+   **Is Enabled** ticked on the `RIQ AI Config` record. Without it every insight is
+   rule-based by design.
+5. **A full deployment resets `Is_Enabled__c` to `false`**, because the committed Custom
+   Metadata record ships disabled so the project is reproducible without anyone's key.
+   Re-enable it in Setup after a full deploy, or deploy only the components you changed.
+6. **The screenshots predate the Phase 8 UI polish.** The sparkline caption and the
+   visible "Risk reasons" label are in the deployed components but not yet in the images.
+7. **The error list view screenshot is empty on purpose.** It shows the filtered
+   `RIQ_Log__c` view with 0 rows, which proves the view exists, not that errors were
+   captured.
+
+## Roadmap
+
+| Phase | Scope                                                                      | Status  |
+| ----- | -------------------------------------------------------------------------- | ------- |
+| 1     | Project scaffold, data model, permission sets, synthetic seed              | ✅      |
+| 2     | Health scoring engine + score history                                      | ✅      |
+| 3     | Nightly batch, platform events, playbook automation, Flow alert            | ✅      |
+| 4     | LWC command center, record components, Jest tests                          | ✅      |
+| 5     | LLM callout (Named/External Credential), inbound signal REST API           | ✅      |
+| 6     | Security review: sharing, CRUD/FLS, injection, secret handling             | ✅      |
+| 7     | CI/CD on scratch orgs, one-command setup, repo hygiene                     | ✅      |
+| 8     | Coverage close-out, UI polish, portfolio documentation                     | ✅      |
+| Next  | Queueable-published score refresh, two-user sharing test, delta deployment | Planned |
 
 ## Everyday commands
 
@@ -469,60 +408,52 @@ the book can be reset without touching anything else.
 # Deploy only what changed
 sf project deploy start --target-org RenewalIQ
 
-# Run every Apex test with coverage
-sf apex run test --target-org RenewalIQ --code-coverage --result-format human --wait 10
+# Every Apex test with coverage, then the gate
+sf apex run test --target-org RenewalIQ --test-level RunLocalTests \
+  --code-coverage --result-format json --output-dir test-results
+node scripts/ci/check-coverage.mjs test-results
 
-# Lint + format + LWC unit tests
+# Lint, format, LWC unit tests
 npm run lint
-npm run prettier
+npm run prettier:verify
 npm run test:unit
 
-# Static analysis (needs a JDK; this machine uses Android Studio's bundled one)
-export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
+# Static analysis (needs a JDK)
+export JAVA_HOME="/path/to/jdk"
 sf code-analyzer run --config-file config/code-analyzer.yml \
     --workspace . --rule-selector pmd:RenewalIQApex --view table
 ```
-
-`npm run prettier` formats Apex and XML through `prettier-plugin-apex` and
-`@prettier/plugin-xml`. The Apex plugin shells out to a bundled native
-`apex-ast-serializer` binary; on machines where an application-control policy blocks
-executables it fails with `blocked by your organization's Device Guard policy`, and
-Apex formatting has to run on an unrestricted machine (CI works well for this).
 
 ## Project layout
 
 ```
 force-app/main/default/
-  applications/     RenewalIQ app
-  classes/          Apex service, selector, handler, test classes
-  customMetadata/   Scoring rules, status thresholds, RIQ AI Config (model, tokens, timeout, toggle)
-  externalCredentials/  RIQ_LLM_API principal with the Authorization bearer header (value never committed)
-  flexipages/       Lightning record pages
+  classes/          services, selectors, trigger handlers, tests
+  customMetadata/   scoring rules, thresholds, batch config, AI config
+  externalCredentials/, namedCredentials/   RIQ_LLM_API (no secret committed)
+  flexipages/       Command Center app page, Account record page
   flows/            RIQ_Account_Critical_Alert (record-triggered)
-  lwc/              Command center, score card, signal logger, shared helpers (+ Jest)
-  messageChannels/  RIQ_Score_Refresh (Lightning Message Service)
-  notificationtypes/  RIQ_HealthAlert custom notification type
-  namedCredentials/ RIQ_LLM_API SecuredEndpoint pointing at the provider base URL
-  objects/          Account fields, signals, score history, platform event, batch config, AI config CMDT
+  lwc/              riqCommandCenter, riqHealthScoreCard, riqSignalLogger, riqUtils (+ Jest)
+  messageChannels/  RIQ_Score_Refresh
+  objects/          Account fields, signals, history, platform events, RIQ_Log__c
   permissionsets/   RIQ_Admin, RIQ_CSM, RIQ_Read_Only, RIQ_AI_Insight, RIQ_Integration_User
-  platformEventSubscriberConfigs/  Named subscriber user for the event trigger
-  staticresources/  chartjs (Chart.js 4.6.1 UMD build, served from the org)
-  tabs/             Custom object tabs + the Command Center tab
-scripts/apex/       Anonymous Apex utilities (seeding, smoke tests, live callout check)
-scripts/ci/         CI helpers (coverage gate)
-scripts/setup.ps1   One-command install, Windows
-scripts/setup.sh    One-command install, macOS / Linux
-config/             Scratch org definitions, PMD ruleset, Code Analyzer config, event config template
-.github/            CI workflows, Dependabot, CODEOWNERS, PR and issue templates
-docs/               Interview notes, data model, API, integrations, security, CI reference
+  staticresources/  chartjs (served from the org, no CDN at runtime)
+scripts/apex/       seed, reset, demo scenario, batch, schedules, callout check
+scripts/ci/         coverage gate
+scripts/setup.sh, setup.ps1   one-command install
+config/             scratch org definition, PMD ruleset, Code Analyzer config, event template
+docs/               API, CI, data model, integrations, interview notes, security, screenshots
 ```
 
 ## Documentation
 
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) — objects, fields, scoring configuration
-- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) — LLM callout setup (credential, toggle, provider switch, troubleshooting)
-- [docs/API.md](docs/API.md) — inbound signal API: auth, payload, responses, idempotency, security
+- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) — LLM callout setup, provider switch, troubleshooting
+- [docs/API.md](docs/API.md) — inbound signal API: auth, payload, responses, idempotency
 - [docs/INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md) — design decisions per phase
-- [docs/SECURITY.md](docs/SECURITY.md) — security model, permission matrix, findings, logging, static analysis, measured performance
-- [docs/CI.md](docs/CI.md) — the two workflows, `SFDX_AUTH_URL`, Developer Edition Dev Hub limits, the coverage and PMD gates
-- [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) — screenshot checklist for the portfolio write-up
+- [docs/INTERVIEW_QA.md](docs/INTERVIEW_QA.md) — 30 likely interview questions with honest answers
+- [docs/SECURITY.md](docs/SECURITY.md) — security model, permission matrix, findings, static analysis
+- [docs/CI.md](docs/CI.md) — workflows, `SFDX_AUTH_URL`, Dev Hub limits, the coverage and PMD gates
+- [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) — screenshot checklist and what each shot proves
+- [CONTRIBUTING.md](CONTRIBUTING.md) — branching, the gates a PR must pass, code conventions
+- [LICENSE](LICENSE) — MIT
