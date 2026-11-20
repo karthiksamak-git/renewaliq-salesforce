@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload Jest coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jest-coverage
           path: coverage/
@@ -179,7 +179,7 @@ jobs:
 
       - name: Upload Apex results, coverage and static analysis
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apex-results
           path: test-results/
