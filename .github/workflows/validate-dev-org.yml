@@ -91,7 +91,7 @@ jobs:
 
       - name: Upload the validation log
         if: always() && steps.secret.outputs.available == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dev-org-validation
           path: deploy-validate.log
