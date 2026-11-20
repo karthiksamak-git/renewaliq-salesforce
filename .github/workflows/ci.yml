@@ -43,6 +43,16 @@ jobs:
       - name: Jest with coverage
         run: npm run test:unit:coverage
 
+      # The Apex job skips for forks and Dependabot runs (no Dev Hub secret). Say so in
+      # the run summary, so a missing Apex result is never mistaken for a passing one.
+      - name: Explain the skipped Apex job
+        if: >-
+          github.event_name == 'pull_request' &&
+          (github.event.pull_request.head.repo.full_name != github.repository ||
+          github.actor == 'dependabot[bot]')
+        run: |
+          echo "::notice title=Apex job skipped::The scratch-org job needs SFDX_AUTH_URL, and fork and Dependabot pull-request runs cannot read repository Actions secrets. Apex tests, the coverage gate and PMD did not run on this commit. CI on main runs them for every merge."
+
       - name: Upload Jest coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -57,13 +67,17 @@ jobs:
     needs: lint-and-unit
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # A pull request opened from a fork cannot read repository secrets, so there is no
-    # Dev Hub to authenticate with. Skipping with a visible reason is honest; failing
-    # would blame the contributor for something they cannot fix. Lint and Jest still
-    # run above, so a fork's code is still checked.
+    # This job needs a Dev Hub. Two kinds of pull request cannot supply one: a fork
+    # cannot read repository secrets at all, and a run triggered by Dependabot reads the
+    # separate Dependabot secret store rather than Actions secrets. Skipping with a
+    # visible reason is honest; failing would blame the contributor or the bot for
+    # something they cannot fix. Lint, Prettier and Jest still run above, so their code is
+    # still checked - and main and human pull requests keep this job as a hard gate, so
+    # nothing merges unverified.
     if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.actor != 'dependabot[bot]'
     env:
       SCRATCH_ORG_ALIAS: ci-scratch
     steps:
